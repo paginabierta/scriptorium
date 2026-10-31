@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scriptorium</title>
+<meta name="description" content="Tu cuaderno de pastoral, estudio, lectura y escritura.">
+<meta name="theme-color" content="#7A2E2A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app">
+  <aside id="sidebar" class="sidebar" aria-label="Menú"></aside>
+  <div id="scrim" class="scrim" hidden></div>
+  <main class="main">
+    <header class="topbar">
+      <button type="button" id="menuBtn" class="icon-btn" aria-label="Abrir menú">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <a href="#/hoy" class="topbar-brand">
+        <img src="icons/icon.svg" alt="" width="26" height="26">
+        <span>Scriptorium</span>
+      </a>
+      <a href="#/buscar" class="icon-btn" aria-label="Buscar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </a>
+    </header>
+    <div id="view" class="view"></div>
+  </main>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="vendor/editorjs.umd.js"></script>
+<script src="vendor/header.umd.js"></script>
+<script src="vendor/editorjs-list.umd.js"></script>
+<script src="vendor/checklist.umd.js"></script>
+<script src="vendor/quote.umd.js"></script>
+<script src="vendor/delimiter.umd.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
