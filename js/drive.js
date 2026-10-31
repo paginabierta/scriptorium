@@ -70,6 +70,7 @@ export function signOut() {
   const t = localStorage.getItem(LS.token);
   if (t && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(t, () => {});
   Object.values(LS).forEach(k => localStorage.removeItem(k));
+  Object.keys(localStorage).filter(k => k.startsWith('scr.sub.')).forEach(k => localStorage.removeItem(k));
 }
 
 async function api(url, opts = {}) {
@@ -81,6 +82,7 @@ async function api(url, opts = {}) {
     const e = new Error('Sesión de Google vencida'); e.code = 'AUTH'; throw e;
   }
   if (!res.ok) throw new Error(`Drive respondió ${res.status}`);
+  if (opts.blob) return res.blob();
   const type = res.headers.get('content-type') || '';
   return type.includes('application/json') ? res.json() : res.text();
 }
@@ -141,4 +143,52 @@ export async function upload(data) {
   await api(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body
   });
+}
+
+// ---------- Archivos aparte (libros EPUB) en la subcarpeta "Libros" ----------
+async function ensureSubfolder(name) {
+  const key = 'scr.sub.' + name;
+  let id = localStorage.getItem(key);
+  if (id) return id;
+  const parent = await ensureFolder();
+  const q = encodeURIComponent(`name='${name}' and '${parent}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const found = await api(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)&spaces=drive`);
+  if (found.files?.length) id = found.files[0].id;
+  else {
+    const created = await api('https://www.googleapis.com/drive/v3/files?fields=id', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, parents: [parent], mimeType: 'application/vnd.google-apps.folder' })
+    });
+    id = created.id;
+  }
+  localStorage.setItem(key, id);
+  return id;
+}
+
+export async function uploadFile(name, blob, subfolder = 'Libros') {
+  const folder = await ensureSubfolder(subfolder);
+  const boundary = 'scr' + Math.random().toString(36).slice(2);
+  const meta = JSON.stringify({ name, parents: [folder] });
+  const body = new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n`,
+    `--${boundary}\r\nContent-Type: ${blob.type || 'application/octet-stream'}\r\n\r\n`,
+    blob,
+    `\r\n--${boundary}--`
+  ]);
+  const res = await api('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body
+  });
+  return res.id;
+}
+
+export async function downloadFile(fileId) {
+  return api(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { blob: true });
+}
+
+export async function trashFile(fileId) {
+  try {
+    await api(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true })
+    });
+  } catch (e) { /* si ya no existe, no importa */ }
 }

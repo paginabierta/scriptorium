@@ -1,36 +1,30 @@
 # Scriptorium
 
-Tu cuaderno de pastoral, teología, psicología, estudio, lectura y escritura. Funciona en el computador, la tablet y el teléfono, sin conexión, y guarda una copia en tu Google Drive.
+Tu cuaderno de pastoral, teología, psicología, estudio, lectura y escritura. Funciona en el computador, la tablet y el teléfono, también sin conexión, y guarda una copia en tu Google Drive.
 
-## Qué trae la Fase 1
+## Qué trae (versión 0.2)
 
-- **Espacios editables:** puedes renombrarlos, cambiarles el color, reordenarlos, archivarlos, unirlos y crear nuevos.
-- **Notas por bloques:** texto, títulos, listas, casillas, citas y separadores.
-- **Organización:** subpáginas, etiquetas y buscador.
-- **Hoy:** saludo, tiempo litúrgico, pendientes sacados de las casillas de tus notas, notas recientes y tus espacios.
-- **Seguridad de tus datos:** papelera para recuperar notas y copia de seguridad descargable.
-- **Sin conexión y sincronizada:** funciona sin internet y se sincroniza con Google Drive (carpeta «Scriptorium»).
+- **Hoy:** tiempo litúrgico, próximo domingo o solemnidad con botón para preparar la homilía, pendientes, lectura en curso, avance de tu libro, repaso y notas recientes.
+- **Espacios editables:** puedes renombrarlos, cambiarles el color, reordenarlos, archivarlos, unirlos y crear nuevos. Cada espacio se ve en lista o en tablero (pendiente, en curso, hecho).
+- **Notas por bloques:** texto, títulos, listas, casillas, citas, cita bíblica (normaliza «juan 3:16» → «Jn 3, 16»), magisterio (CEC, LG, EG…) y referencia APA 7.
+- **Organización de las notas:** subpáginas, etiquetas, fecha litúrgica y enlaces `[[Título]]` con «notas que enlazan aquí».
+- **Plantillas editables:** homilía, guion radial, sesión Merrill, acta, catequesis, ficha de lectura, sesión del club y examen del día.
+- **Calendario litúrgico:** colores, domingos y solemnidades, con los traslados de Colombia. Muestra lo que escribiste para ese mismo día en otros años.
+- **Referencias APA 7:** lista ordenada y lista para copiar, cita en el texto, y exportación a Word con la página de referencias.
+- **Repaso espaciado:** para lo que quieras recordar.
+- **Biblioteca y lector de EPUB:** subrayados, anotaciones, índice, tamaño de letra y modo noche. Con los subrayados crea una ficha de lectura con su referencia APA.
+- **Escritura:** proyectos por capítulos, metas diarias, racha de días, fichas, versiones y modo concentración. Exporta a Word, PDF, EPUB o Markdown.
+- **Privado:** notas cifradas con tu contraseña (AES-256) antes de salir del aparato.
+- **Exportar cualquier nota:** a Word, PDF o Markdown.
 
-## Publicar en GitHub Pages
+## Actualizar en GitHub Pages
 
-1. Sube todo el contenido de esta carpeta a la raíz del repositorio `scriptorium`.
-2. En el repositorio ve a *Settings → Pages*. En *Source* elige la rama `main` y la carpeta `/ (root)`, y guarda.
-3. En un par de minutos la app queda en `https://TU-CUENTA.github.io/scriptorium/`.
+1. Descomprime el zip.
+2. En el repositorio, toca **Add file → Upload files** y arrastra todo el contenido de la carpeta `scriptorium`, incluida la carpeta `js/views` que es nueva.
+3. Toca **Commit changes**. En uno o dos minutos la versión nueva está en línea.
 
-## Conectar Google Drive
-
-1. Abre `js/config.js` y pega tu ID de cliente entre las comillas de `GOOGLE_CLIENT_ID`.
-2. En Google Cloud, el ID de cliente debe tener `https://TU-CUENTA.github.io` como origen de JavaScript autorizado.
-3. Sube el cambio. Luego, en la app, ve a *Ajustes → Conectar con Google*.
-
-Cada vez que publiques cambios, sube el número de `VERSION` en `sw.js`. Así los aparatos descargan la versión nueva.
-
-## Instalar en cada aparato
-
-- **Computador (Chrome o Edge):** usa el ícono de instalar en la barra de direcciones.
-- **Android:** en el menú ⋮ de Chrome, elige *Agregar a la pantalla principal* o *Instalar app*.
-- **iPad o iPhone:** en Safari, toca *Compartir → Agregar a inicio*.
+Tus notas no se tocan: viven en cada aparato y en tu Drive, no en GitHub.
 
 ## Créditos
 
-El editor por bloques usa Editor.js (Apache-2.0) y sus complementos (MIT), incluidos en `vendor/`.
+Editor.js (Apache-2.0) y sus complementos (MIT), epub.js (BSD-2-Clause) y JSZip (MIT), incluidos en `vendor/`.
