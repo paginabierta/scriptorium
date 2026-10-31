@@ -9,6 +9,8 @@ import { formatAPA, citaEnTexto } from '../apa.js';
 import { liturgicalDay, COLORES } from '../liturgia.js';
 import { exportDocx, printDocument, exportMarkdown } from '../export.js';
 import { reviewToggle } from './review.js';
+import * as gcal from '../gcal.js';
+import { scheduleNote, noteEventChip } from './agenda.js';
 
 const view = () => $('#view');
 export const STATUS = { '': 'Sin estado', pendiente: 'Pendiente', curso: 'En curso', hecho: 'Hecho' };
@@ -225,6 +227,7 @@ export function viewNote(id) {
           <summary class="btn sm">Más</summary>
           <div class="menu-pop">
             <button type="button" data-act="sub">${icon('pagina', 14)}Nueva subpágina</button>
+            <button type="button" data-act="cal">${icon('calendario', 14)}${n.event ? 'Editar evento en Google Calendar' : 'Agendar en Google Calendar'}</button>
             <button type="button" data-act="refs">${icon('marca', 14)}Lista de referencias</button>
             <button type="button" data-act="docx">${icon('descargar', 14)}Exportar a Word</button>
             <button type="button" data-act="pdf">${icon('descargar', 14)}Imprimir o guardar PDF</button>
@@ -235,6 +238,7 @@ export function viewNote(id) {
         </details>
       </div>
       <div id="litInfo"></div>
+      <div id="eventInfo"></div>
       <div id="editor" class="editor"></div>
       <p class="hint editor-hint">Escribe <code>[[Título de otra nota]]</code> para enlazarla (si no existe, se crea). Pulsa Tab o el botón + para cita bíblica, magisterio, referencia APA, casillas…</p>
       ${kids.length ? `<section class="subpages"><h2 class="card-title">Subpáginas</h2><div class="rows">${kids.map(k => noteRow(k, { showSpace: false })).join('')}</div></section>` : ''}
@@ -243,6 +247,15 @@ export function viewNote(id) {
     </article>`;
 
   renderLitInfo(n);
+  const renderEvent = () => {
+    const box = $('#eventInfo'); if (!box) return;
+    const cur = S.notes.get(id);
+    box.innerHTML = noteEventChip(cur);
+    box.querySelector('[data-ev-edit]')?.addEventListener('click', async () => { await scheduleNote(S.notes.get(id)); renderEvent(); renderLitInfo(S.notes.get(id)); });
+    const calBtn = $('[data-act="cal"]');
+    if (calBtn) calBtn.innerHTML = `${icon('calendario', 14)}${cur.event ? 'Editar evento en Google Calendar' : 'Agendar en Google Calendar'}`;
+  };
+  renderEvent();
 
   let editor = null;
   let saving = Promise.resolve();
@@ -325,6 +338,16 @@ export function viewNote(id) {
     const tree = [cur]; const collect = (nid) => childrenOf(nid).forEach(c => { tree.push(c); collect(c.id); });
     switch (b.dataset.act) {
       case 'sub': createNote({ spaceId: cur.spaceId, parentId: cur.id, ask: true }); break;
+      case 'cal': {
+        if (!gcal.isReady()) {
+          if (gcal.needsPermission()) { try { await gcal.grantAccess(); } catch (e) { toast(e.message); return; } }
+          else { toast('Conecta tu cuenta de Google en Ajustes'); return; }
+        }
+        await scheduleNote(cur);
+        renderEvent();
+        if (cur.fecha) { const d = $('#noteDate'); if (d) d.value = cur.fecha; cur.litKey = liturgicalDay(parseISO(cur.fecha)).clave || ''; renderLitInfo(cur); }
+        break;
+      }
       case 'refs': showReferences(cur); break;
       case 'docx': { collect(cur.id); const refs = dedupeRefs(tree.flatMap(x => collectReferences(x.content?.blocks))); await exportDocx(cur.title || 'Sin título', tree.length > 1 ? tree.map(x => ({ title: x.title, blocks: stripRefBlocks(x.content?.blocks) })) : [{ blocks: stripRefBlocks(cur.content?.blocks) }], { refs }); break; }
       case 'pdf': { collect(cur.id); const refs = dedupeRefs(tree.flatMap(x => collectReferences(x.content?.blocks))); printDocument(cur.title || 'Sin título', tree.length > 1 ? tree.map(x => ({ title: x.title, blocks: stripRefBlocks(x.content?.blocks) })) : [{ blocks: stripRefBlocks(cur.content?.blocks) }], { refs }); break; }

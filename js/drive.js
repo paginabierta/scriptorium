@@ -3,11 +3,16 @@
 
 import { GOOGLE_CLIENT_ID, DRIVE_FOLDER_NAME, DRIVE_DATA_FILE } from './config.js';
 
-const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+// Permisos: drive.file (solo los archivos que crea la app) + eventos de Google Calendar.
+const SCOPE_DRIVE = 'https://www.googleapis.com/auth/drive.file';
+export const SCOPE_CAL = 'https://www.googleapis.com/auth/calendar.events';
+const SCOPE_CAL_LIST = 'https://www.googleapis.com/auth/calendar.calendarlist.readonly';
+const SCOPE = [SCOPE_DRIVE, SCOPE_CAL, SCOPE_CAL_LIST].join(' ');
 const LS = {
   token: 'scr.token', expiry: 'scr.tokenExpiry', connected: 'scr.connected',
-  email: 'scr.email', name: 'scr.name', folderId: 'scr.folderId', fileId: 'scr.fileId'
+  email: 'scr.email', name: 'scr.name', folderId: 'scr.folderId', fileId: 'scr.fileId', scopes: 'scr.scopes'
 };
+export function hasScope(scope) { return (localStorage.getItem(LS.scopes) || '').split(' ').includes(scope); }
 
 let tokenClient = null;
 let gisPromise = null;
@@ -40,7 +45,7 @@ function loadGIS() {
 }
 
 // Pide (o renueva) el permiso. Debe llamarse desde un toque o clic del usuario.
-export async function signIn({ silent = false } = {}) {
+export async function signIn({ silent = false, consent = false } = {}) {
   if (!isConfigured()) throw new Error('Falta el ID de cliente de Google en js/config.js');
   await loadGIS();
   return new Promise((resolve, reject) => {
@@ -48,11 +53,13 @@ export async function signIn({ silent = false } = {}) {
       client_id: GOOGLE_CLIENT_ID,
       scope: SCOPE,
       hint: localStorage.getItem(LS.email) || undefined,
+      include_granted_scopes: true,
       callback: async (resp) => {
         if (resp.error) return reject(new Error(resp.error_description || resp.error));
         localStorage.setItem(LS.token, resp.access_token);
         localStorage.setItem(LS.expiry, String(Date.now() + Number(resp.expires_in || 3600) * 1000));
         localStorage.setItem(LS.connected, '1');
+        if (resp.scope) localStorage.setItem(LS.scopes, resp.scope);
         try {
           const about = await api('https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress)');
           localStorage.setItem(LS.email, about.user.emailAddress || '');
@@ -62,7 +69,7 @@ export async function signIn({ silent = false } = {}) {
       },
       error_callback: (err) => reject(new Error(err?.message || 'Se cerró la ventana de Google')),
     });
-    tokenClient.requestAccessToken({ prompt: silent || isConnected() ? '' : 'consent' });
+    tokenClient.requestAccessToken({ prompt: consent ? 'consent' : (silent || isConnected() ? '' : 'consent') });
   });
 }
 
@@ -73,7 +80,7 @@ export function signOut() {
   Object.keys(localStorage).filter(k => k.startsWith('scr.sub.')).forEach(k => localStorage.removeItem(k));
 }
 
-async function api(url, opts = {}) {
+export async function api(url, opts = {}) {
   const token = validToken();
   if (!token) { const e = new Error('Sesión de Google vencida'); e.code = 'AUTH'; throw e; }
   const res = await fetch(url, { ...opts, headers: { Authorization: `Bearer ${token}`, ...(opts.headers || {}) } });
@@ -81,7 +88,9 @@ async function api(url, opts = {}) {
     localStorage.removeItem(LS.token);
     const e = new Error('Sesión de Google vencida'); e.code = 'AUTH'; throw e;
   }
-  if (!res.ok) throw new Error(`Drive respondió ${res.status}`);
+  if (res.status === 403 && opts.calendar) { const e = new Error('Falta el permiso del calendario'); e.code = 'SCOPE'; throw e; }
+  if (!res.ok) { const e = new Error(`${opts.calendar ? 'Google Calendar' : 'Drive'} respondió ${res.status}`); e.status = res.status; throw e; }
+  if (res.status === 204) return null;
   if (opts.blob) return res.blob();
   const type = res.headers.get('content-type') || '';
   return type.includes('application/json') ? res.json() : res.text();

@@ -4,6 +4,7 @@ import * as drive from '../drive.js';
 import * as sync from '../sync.js';
 import { $, esc, icon, toast, hace, save, settings, loadAll, refresh, confirmDialog, downloadBlob, isoDate } from '../core.js';
 import { APP_VERSION } from '../config.js';
+import * as gcal from '../gcal.js';
 
 export function viewSettings({ runSync }) {
   const acc = drive.account();
@@ -35,6 +36,13 @@ export function viewSettings({ runSync }) {
       </section>
 
       <section class="card">
+        <h2 class="card-title">Google Calendar</h2>
+        <div id="calSettings">${!con ? '<p class="hint">Primero conecta tu cuenta de Google (arriba).</p>'
+          : gcal.needsPermission() ? `<p class="hint">Scriptorium puede mostrar tu agenda en «Hoy» y en el Calendario, y crear o modificar eventos desde tus notas.</p><div class="btn-row"><button type="button" class="btn primary" id="calGrant">${icon('calendario', 14)}Conectar Google Calendar</button></div>`
+          : '<p class="hint">Cargando tus calendarios…</p>'}</div>
+      </section>
+
+      <section class="card">
         <h2 class="card-title">Referencias APA</h2>
         <p class="hint">Entre el penúltimo y el último autor, la adaptación al español de APA 7 usa «y». Si tu universidad pide «&amp;», cámbialo aquí.</p>
         <div class="seg" role="group" aria-label="Conector entre autores">
@@ -60,6 +68,12 @@ export function viewSettings({ runSync }) {
 
       <p class="hint center">Scriptorium ${APP_VERSION}</p>
     </div>`;
+
+  $('#calGrant')?.addEventListener('click', async () => {
+    try { await gcal.grantAccess(); await gcal.listCalendars(); toast('Calendario conectado'); viewSettings({ runSync }); refresh(); }
+    catch (e) { toast(e.message); }
+  });
+  if (con && gcal.isReady()) renderCalSettings();
 
   $('#nameForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -99,4 +113,27 @@ export function viewSettings({ runSync }) {
       toast('Copia cargada'); refresh();
     } catch (err) { toast(err.message); }
   });
+}
+
+async function renderCalSettings(force = false) {
+  const box = $('#calSettings');
+  if (!box) return;
+  let cals = gcal.cachedCalendars();
+  try { if (force || !cals.length) cals = await gcal.listCalendars(); } catch (e) {
+    if (!cals.length) { box.innerHTML = `<p class="hint">${e.code === 'SCOPE' ? 'Falta el permiso del calendario.' : 'No pude leer tus calendarios ahora.'}</p>`; return; }
+  }
+  if (!$('#calSettings')) return;
+  const sel = gcal.selectedIds();
+  const def = gcal.defaultCalendar();
+  box.innerHTML = `<p class="hint">Elige qué calendarios se ven en Scriptorium y en cuál se crean los eventos nuevos.</p>
+    <div class="cal-list">${cals.map(c => `<label class="cal-opt"><input type="checkbox" value="${esc(c.id)}" ${sel.includes(c.id) || (c.primary && sel.includes('primary')) ? 'checked' : ''}><span class="dot" style="background:${esc(c.color || '#3E4C8A')}"></span><span class="grow">${esc(c.name)}${c.primary ? ' <span class="muted">(principal)</span>' : ''}</span></label>`).join('')}</div>
+    <label class="field"><span>Los eventos nuevos van a</span><select id="calDef">${cals.filter(c => c.canWrite).map(c => `<option value="${esc(c.id)}" ${c.id === def || (c.primary && def === 'primary') ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
+    <div class="btn-row"><button type="button" class="btn sm" id="calReload">Actualizar lista</button></div>`;
+  box.querySelectorAll('.cal-opt input').forEach(cb => cb.addEventListener('change', () => {
+    const ids = [...box.querySelectorAll('.cal-opt input:checked')].map(x => x.value);
+    gcal.setSelected(ids.length ? ids : ['primary']);
+    toast('Listo');
+  }));
+  $('#calDef').addEventListener('change', (e) => { gcal.setDefault(e.target.value); toast('Listo'); });
+  $('#calReload').addEventListener('click', () => renderCalSettings(true));
 }

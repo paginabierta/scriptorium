@@ -453,3 +453,26 @@ a.pill:hover { border-color: #C9BBA3; color: var(--ink); }
 .note-meta input[type=date] { min-height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 0 8px; font-size: 13px; color: var(--ink); }
 .tag-edit input { min-width: 70px; }
 .blk-label { font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin: 0 0 4px 21px; }
+
+/* Google Calendar */
+.ev-list { display: flex; flex-direction: column; }
+.ev-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
+.ev-row:last-child { border-bottom: 0; }
+.ev-bar { width: 4px; align-self: stretch; border-radius: 2px; flex: none; }
+.ev-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.ev-time { font-size: 12px; color: var(--muted); }
+.ev-title { font-weight: 500; }
+.ev-loc { font-size: 12px; color: var(--muted); }
+.ev-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.event-chip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: #EEF1F7; border: 1px solid #D5DBE8; border-radius: 12px; padding: 10px 14px; margin: -8px 0 18px; font-size: 14px; }
+.event-chip .ic { color: #3E4C8A; }
+.event-chip > span { flex: 1; min-width: 200px; }
+.cal-ev { display: block; border-left: 3px solid var(--c, #3E4C8A); background: var(--bg); border-radius: 0 5px 5px 0; padding: 1px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-ev b { font-weight: 600; }
+.cal-list { display: flex; flex-direction: column; gap: 2px; margin: 8px 0; }
+.cal-opt { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 6px; border-radius: 8px; cursor: pointer; }
+.cal-opt:hover { background: var(--bg); }
+.cal-opt input { width: 18px; height: 18px; accent-color: var(--accent); }
+.field.check { flex-direction: row; align-items: center; gap: 8px; align-self: flex-end; min-height: 42px; color: var(--ink); font-size: 14px; }
+.field.check input { width: 18px; height: 18px; min-height: 0; accent-color: var(--accent); }
+@media (max-width: 900px) { .cal-ev { display: none; } .cal-day:has(.cal-ev) .cal-num::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: #3E4C8A; margin-left: auto; } }

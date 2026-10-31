@@ -7,6 +7,8 @@ import { prepararHomilia } from './calendar.js';
 import { dueNotes } from './review.js';
 import { lastBook } from './library.js';
 import { lastProject, todayWords, streak } from './writing.js';
+import * as gcal from '../gcal.js';
+import { permissionHtml, bindPermission, eventRows, bindEventRows, eventDialog } from './agenda.js';
 
 const fmt = (n) => Number(n || 0).toLocaleString('es-CO');
 const dot = (color) => `<span class="lit-dot" style="background:${COLORES[color]};${color === 'blanco' ? 'border:1.5px solid #B9AC96;' : ''}"></span>`;
@@ -64,6 +66,10 @@ export function viewHoy() {
       </section>` : ''}
 
       <div class="grid">
+        ${gcal.isReady() || gcal.needsPermission() ? `<section class="card" id="agendaCard">
+          <div class="card-head"><h2 class="card-title">Agenda de hoy</h2>${gcal.isReady() ? `<button type="button" class="btn sm" id="newEv">${icon('mas', 13)}Evento</button>` : ''}</div>
+          <div id="agendaBody">${gcal.isReady() ? '<p class="hint">Cargando tu agenda…</p>' : permissionHtml()}</div>
+        </section>` : ''}
         <section class="card">
           <h2 class="card-title">Pendientes</h2>
           ${pend.length ? `<ul class="plain">${pend.map(p => `<li><a href="#/nota/${p.note.id}" class="pend"><span class="box" aria-hidden="true"></span><span><span>${esc(p.text)}</span><span class="pend-src">${esc(p.note.title || 'Sin título')}</span></span></a></li>`).join('')}</ul>`
@@ -111,4 +117,24 @@ export function viewHoy() {
     </div>`;
   $('#newNote').addEventListener('click', () => createNote({ ask: true }));
   $('#prepHom')?.addEventListener('click', () => prepararHomilia(nxIso));
+  loadAgenda();
+}
+
+async function loadAgenda() {
+  const box = $('#agendaBody');
+  if (!box) return;
+  if (!gcal.isReady()) { bindPermission(box, viewHoy); return; }
+  $('#newEv')?.addEventListener('click', async () => { const r = await eventDialog({ date: isoDate() }); if (r) loadAgenda(); });
+  const from = new Date(); from.setHours(0, 0, 0, 0);
+  const to = new Date(from); to.setDate(to.getDate() + 1);
+  try {
+    const events = await gcal.listEvents(from, to);
+    if (!$('#agendaBody')) return;
+    box.innerHTML = events.length ? `<div class="ev-list">${eventRows(events)}</div>` : '<p class="empty">Nada en tu agenda para hoy.</p>';
+    bindEventRows(box, events, { onChange: () => { loadAgenda(); }, createNote });
+  } catch (e) {
+    if (!$('#agendaBody')) return;
+    box.innerHTML = e.code === 'SCOPE' ? permissionHtml() : `<p class="hint">${navigator.onLine ? 'No pude leer tu agenda ahora.' : 'Sin conexión: la agenda aparece cuando vuelva internet.'}</p>`;
+    bindPermission(box, viewHoy);
+  }
 }

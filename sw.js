@@ -1,9 +1,9 @@
 // Permite abrir Scriptorium sin conexión. Cambia VERSION cada vez que publiques cambios.
-const VERSION = 'scriptorium-v0.2.0';
+const VERSION = 'scriptorium-v0.3.0';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/db.js', 'js/drive.js', 'js/sync.js', 'js/liturgia.js', 'js/config.js', 'js/core.js',
-  'js/editor.js', 'js/blocks.js', 'js/apa.js', 'js/templates.js', 'js/export.js', 'js/crypto.js',
+  'js/editor.js', 'js/blocks.js', 'js/apa.js', 'js/templates.js', 'js/export.js', 'js/crypto.js', 'js/gcal.js', 'js/views/agenda.js',
   'js/views/notes.js', 'js/views/hoy.js', 'js/views/calendar.js', 'js/views/review.js', 'js/views/library.js',
   'js/views/writing.js', 'js/views/privado.js', 'js/views/settings.js',
   'vendor/jszip.min.js', 'vendor/epub.min.js',

@@ -2,6 +2,11 @@
 import { S, $, $$, esc, icon, isoDate, parseISO, fechaCorta, MESES, liveNotes, findSpaceByName, live } from '../core.js';
 import { liturgicalDay, COLORES } from '../liturgia.js';
 import { createNote } from './notes.js';
+import * as gcal from '../gcal.js';
+import { permissionHtml, bindPermission, eventRows, bindEventRows, eventDialog } from './agenda.js';
+
+let monthEvents = [];
+let currentArg = '';
 
 const DOW = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
@@ -20,6 +25,8 @@ export async function prepararHomilia(dateIso) {
 }
 
 export function viewCalendar(arg = '') {
+  currentArg = arg;
+  monthEvents = [];
   const now = new Date();
   let [y, m] = (arg.match(/^(\d{4})-(\d{2})$/) || []).slice(1).map(Number);
   if (!y) { y = now.getFullYear(); m = now.getMonth() + 1; }
@@ -69,6 +76,27 @@ export function viewCalendar(arg = '') {
   }));
   const pre = (todayIso.slice(0, 7) === `${y}-${String(m).padStart(2, '0')}`) ? todayIso : null;
   if (pre) { $(`.cal-day[data-d="${pre}"]`)?.classList.add('sel'); showDay(pre, byDate.get(pre) || []); }
+  loadMonthEvents(start, cells.length, byDate);
+}
+
+async function loadMonthEvents(start, count, byDate) {
+  if (!gcal.isReady()) return;
+  const end = new Date(start); end.setDate(end.getDate() + count);
+  try {
+    const evs = await gcal.listEvents(start, end);
+    if (!$('.cal')) return;
+    monthEvents = evs;
+    $$('.cal-day').forEach(cell => {
+      const day = gcal.eventsOnDay(evs, cell.dataset.d);
+      if (!day.length) return;
+      cell.querySelectorAll('.cal-ev').forEach(x => x.remove());
+      const html = day.slice(0, 3).map(e => `<span class="cal-ev" style="--c:${esc(e.color)}">${e.allDay ? '' : `<b>${gcal.hhmm(e.start)}</b> `}${esc(e.summary)}</span>`).join('') + (day.length > 3 ? `<span class="cal-more">+${day.length - 3}</span>` : '');
+      const num = cell.querySelector('.cal-fiesta') || cell.querySelector('.cal-num');
+      num.insertAdjacentHTML('afterend', html);
+    });
+    const sel = $('.cal-day.sel');
+    if (sel) showDay(sel.dataset.d, byDate.get(sel.dataset.d) || []);
+  } catch (e) { /* sin conexión o sin permiso: el calendario litúrgico sigue funcionando */ }
 }
 
 function showDay(iso, notes) {
@@ -81,11 +109,17 @@ function showDay(iso, notes) {
     <p class="hint">${esc(lit.tiempo)}${lit.semana && lit.etiqueta ? ' · ' + esc(lit.semana) : ''} · color ${lit.color} · Ciclo ${lit.ciclo} · ${lit.anoFerial}</p>
     ${notes.length ? `<div class="rows">${notes.map(n => `<a class="row" href="#/nota/${n.id}"><span class="row-main"><span class="row-title">${esc(n.title || 'Sin título')}</span></span><span class="row-meta">${esc(S.spaces.get(n.spaceId)?.name || '')}</span></a>`).join('')}</div>` : ''}
     ${previas.length ? `<h3 class="mini">Este mismo día en otros años</h3><div class="rows">${previas.map(n => `<a class="row" href="#/nota/${n.id}"><span class="row-main"><span class="row-title">${esc(n.title || 'Sin título')}</span></span><span class="row-meta">${n.fecha?.slice(0, 4)} · ciclo ${liturgicalDay(parseISO(n.fecha)).ciclo}</span></a>`).join('')}</div>` : ''}
+    ${gcal.isReady() ? (() => { const evs = gcal.eventsOnDay(monthEvents, iso); return `<h3 class="mini">Agenda</h3>${evs.length ? `<div class="ev-list" id="dayEvents">${eventRows(evs)}</div>` : '<p class="hint">Nada en tu Google Calendar este día.</p>'}`; })()
+      : gcal.needsPermission() ? `<h3 class="mini">Agenda</h3><div id="dayPerm">${permissionHtml()}</div>` : ''}
     <div class="btn-row">
       ${lit.clave ? `<button type="button" class="btn primary" id="hom">${icon('pluma', 14)}Preparar homilía</button>` : ''}
       <button type="button" class="btn" id="dayNote">${icon('mas', 14)}Nota para este día</button>
+      ${gcal.isReady() ? `<button type="button" class="btn" id="dayEvent">${icon('calendario', 14)}Nuevo evento</button>` : ''}
     </div>
   </section>`;
+  if ($('#dayEvents')) bindEventRows($('#dayEvents'), gcal.eventsOnDay(monthEvents, iso), { onChange: () => viewCalendar(currentArg), createNote });
+  if ($('#dayPerm')) bindPermission($('#dayPerm'), () => viewCalendar(currentArg));
+  $('#dayEvent')?.addEventListener('click', async () => { const r = await eventDialog({ date: iso }); if (r) viewCalendar(currentArg); });
   $('#hom')?.addEventListener('click', () => prepararHomilia(iso));
   $('#dayNote').addEventListener('click', () => createNote({ fecha: iso, ask: true }));
 }
