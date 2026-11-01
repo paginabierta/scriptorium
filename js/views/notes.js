@@ -121,15 +121,54 @@ export function viewSpace(id) {
       </header>
       <div id="spaceBody"></div>
     </div>`;
+  selectMode = false;
   $$('[data-mode]').forEach(b => b.addEventListener('click', async () => { s.view = b.dataset.mode; await save(s); viewSpace(id); }));
   $('#newNote').addEventListener('click', () => createNote({ spaceId: id, ask: true }));
   if (mode === 'lista') renderList(all); else renderBoard(s, all);
 }
 
+let selectMode = false;
 function renderList(all) {
   const tops = all.filter(n => !n.parentId || !S.notes.get(n.parentId) || S.notes.get(n.parentId).deleted).sort((a, b) => b.updated - a.updated);
-  const tree = (n, depth) => `<div class="tree-item" style="--depth:${depth}">${noteRow(n, { showSpace: false })}</div>` + childrenOf(n.id).map(c => tree(c, depth + 1)).join('');
-  $('#spaceBody').innerHTML = `<section class="card">${tops.length ? `<div class="rows">${tops.map(n => tree(n, 0)).join('')}</div>` : `<p class="empty">Este espacio está vacío. Crea la primera nota.</p>`}</section>`;
+  const tree = (n, depth) => `<div class="tree-item note-item" style="--depth:${depth}">
+      ${selectMode ? `<label class="row-check"><input type="checkbox" value="${n.id}" aria-label="Seleccionar ${esc(n.title || 'Sin título')}"></label>` : ''}
+      ${noteRow(n, { showSpace: false })}
+      ${selectMode ? '' : `<button type="button" class="icon-btn sm row-del" data-del="${n.id}" aria-label="Enviar a la papelera: ${esc(n.title || 'Sin título')}" title="Enviar a la papelera">${icon('papelera', 15)}</button>`}
+    </div>` + childrenOf(n.id).map(c => tree(c, depth + 1)).join('');
+  $('#spaceBody').innerHTML = `
+    ${tops.length ? `<div class="list-tools">
+      ${selectMode ? `<label class="cal-opt sm"><input type="checkbox" id="selAll"><span>Todas</span></label><span class="grow"></span>
+        <button type="button" class="btn sm" id="selCancel">Cancelar</button><button type="button" class="btn sm danger" id="selTrash" disabled>${icon('papelera', 14)}Enviar a la papelera</button>`
+      : `<span class="grow"></span><button type="button" class="btn sm" id="selStart">${icon('lista', 14)}Seleccionar varias</button>`}
+    </div>` : ''}
+    <section class="card">${tops.length ? `<div class="rows">${tops.map(n => tree(n, 0)).join('')}</div>` : `<p class="empty">Este espacio está vacío. Crea la primera nota.</p>`}</section>`;
+  const rerender = () => renderList(notesIn(all[0]?.spaceId || '').length ? notesIn(all[0].spaceId) : []);
+  $('#selStart')?.addEventListener('click', () => { selectMode = true; rerender(); });
+  $('#selCancel')?.addEventListener('click', () => { selectMode = false; rerender(); });
+  const boxes = () => $$('.row-check input');
+  const update = () => { const n = boxes().filter(b => b.checked).length; const t = $('#selTrash'); if (t) { t.disabled = !n; t.innerHTML = `${icon('papelera', 14)}Enviar a la papelera${n ? ` (${n})` : ''}`; } };
+  boxes().forEach(b => b.addEventListener('change', update));
+  $('#selAll')?.addEventListener('change', (e) => { boxes().forEach(b => { b.checked = e.target.checked; }); update(); });
+  $('#selTrash')?.addEventListener('click', async () => {
+    const ids = boxes().filter(b => b.checked).map(b => b.value);
+    if (await trashNotes(ids)) { selectMode = false; rerender(); refresh(); }
+  });
+  $$('[data-del]').forEach(b => b.addEventListener('click', async () => { if (await trashNotes([b.dataset.del])) { rerender(); refresh(); } }));
+}
+
+// Envía notas (y sus subpáginas) a la papelera, con confirmación
+async function trashNotes(ids) {
+  const all = new Set();
+  const collect = (id) => { all.add(id); childrenOf(id).forEach(c => collect(c.id)); };
+  ids.forEach(collect);
+  const first = S.notes.get(ids[0]);
+  const msg = ids.length === 1
+    ? `«${first?.title || 'Sin título'}»${all.size > 1 ? ` y sus ${all.size - 1} subpáginas` : ''} irá${all.size > 1 ? 'n' : ''} a la papelera. Podrás recuperarla${all.size > 1 ? 's' : ''} desde allí.`
+    : `${all.size} notas irán a la papelera. Podrás recuperarlas desde allí.`;
+  if (!await confirmDialog('Enviar a la papelera', msg, { okLabel: 'Enviar a la papelera', danger: true })) return false;
+  for (const id of all) { const n = S.notes.get(id); if (n && !n.deleted) { n.deleted = true; n.deletedAt = Date.now(); await save(n); } }
+  toast(all.size === 1 ? 'Enviada a la papelera' : `${all.size} notas enviadas a la papelera`);
+  return true;
 }
 
 function renderBoard(space, all) {
@@ -143,12 +182,14 @@ function renderBoard(space, all) {
           <a href="#/nota/${n.id}" class="board-title">${esc(n.title || 'Sin título')}</a>
           ${n.tags?.length ? `<span class="tags">${n.tags.map(t => `<span class="tag">#${esc(t)}</span>`).join('')}</span>` : ''}
           <label class="sr" for="st-${n.id}">Estado</label>
-          <select id="st-${n.id}" class="board-sel" data-id="${n.id}">${cols.map(([k2, l2]) => `<option value="${k2}"${k2 === k ? ' selected' : ''}>${l2}</option>`).join('')}</select>
+          <div class="board-foot"><select id="st-${n.id}" class="board-sel" data-id="${n.id}">${cols.map(([k2, l2]) => `<option value="${k2}"${k2 === k ? ' selected' : ''}>${l2}</option>`).join('')}</select>
+          <button type="button" class="icon-btn sm" data-bdel="${n.id}" aria-label="Enviar a la papelera" title="Enviar a la papelera">${icon('papelera', 14)}</button></div>
         </article>`).join('')}</div>
       </section>`;
     }).join('')}</div>`;
   const setStatus = async (nid, st) => { const n = S.notes.get(nid); n.status = st || undefined; if (!st) delete n.status; await save(n); renderBoard(space, notesIn(space.id)); };
   $$('.board-sel').forEach(sel => sel.addEventListener('change', () => setStatus(sel.dataset.id, sel.value)));
+  $$('[data-bdel]').forEach(b => b.addEventListener('click', async () => { if (await trashNotes([b.dataset.bdel])) { renderBoard(space, notesIn(space.id)); refresh(); } }));
   $$('.board-card').forEach(c => c.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', c.dataset.id); c.classList.add('dragging'); }));
   $$('.board-card').forEach(c => c.addEventListener('dragend', () => c.classList.remove('dragging')));
   $$('.board-col').forEach(col => {

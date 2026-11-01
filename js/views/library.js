@@ -250,10 +250,12 @@ export async function viewReader(id) {
       </div>
       <footer class="reader-foot"><div class="bar"><div id="rdBar" style="width:${b.percent || 0}%"></div></div><span id="rdPct">${Math.round(b.percent || 0)} %</span></footer>
       <aside class="reader-panel" id="rdPanel" hidden></aside>
+      <div class="sel-hint" id="selHint" hidden><span>Toca la palabra donde termina</span><button type="button" class="sel-btn" id="selHintX">Cancelar</button></div>
       <div class="sel-bar" id="selBar" hidden>
         <button type="button" class="sel-btn primary" id="selHl">${icon('marca', 15)}Subrayar</button>
         <button type="button" class="sel-btn" id="selSent" title="Ampliar la selección a toda la frase">Frase</button>
         <button type="button" class="sel-btn" id="selPara" title="Ampliar la selección a todo el párrafo">Párrafo</button>
+        <button type="button" class="sel-btn" id="selTo" title="Toca después la palabra donde termina">Hasta…</button>
         <button type="button" class="sel-btn" id="selNote" aria-label="Subrayar y anotar">${icon('lapiz', 15)}<span class="lbl">Anotar</span></button>
         <button type="button" class="sel-btn x" id="selX" aria-label="Cerrar">${icon('x', 16)}</button>
       </div>
@@ -276,8 +278,10 @@ export async function viewReader(id) {
   rendition.themes.default({ body: { 'font-family': 'Georgia, "EB Garamond", serif !important', 'line-height': '1.6' }, '::selection': { background: 'rgba(232,184,74,.45)' } });
   // Si la selección desaparece (tocas otra parte del texto), la barra se esconde sola
   let suppressUntil = 0;
+  let extendFrom = null;   // modo «Hasta…»: inicio fijo, esperando que toques dónde termina
   rendition.hooks.content.register((contents) => {
     contents.document.addEventListener('selectionchange', () => {
+      if (extendFrom) return;
       const sel = contents.window.getSelection();
       if (!sel || sel.isCollapsed || !sel.toString().trim()) hideSelBar();
     });
@@ -388,6 +392,44 @@ export async function viewReader(id) {
     pendingSel = { cfi, text: nr.toString().trim(), contents: ps.contents };
     $('#selBar').hidden = false;
   };
+  // «Hasta…»: fija el inicio y espera un toque en la palabra final (sin arrastrar manijas)
+  const wordEdge = (node, off, dir) => {
+    if (node.nodeType !== 3) return off;
+    const t = node.textContent;
+    if (dir > 0) { while (off < t.length && /[\p{L}\p{N}'’-]/u.test(t[off])) off++; while (off < t.length && /[.,;:!?…»”"')\]]/.test(t[off])) off++; }
+    else { while (off > 0 && /[\p{L}\p{N}'’-]/u.test(t[off - 1])) off--; while (off > 0 && /[«“"'(\[¿¡]/.test(t[off - 1])) off--; }
+    return off;
+  };
+  const endHint = () => { extendFrom = null; $('#selHint').hidden = true; };
+  $('#selTo').addEventListener('click', () => {
+    const ps = pendingSel; if (!ps) return;
+    const sel = ps.contents.window.getSelection(); if (!sel.rangeCount) return;
+    extendFrom = { range: sel.getRangeAt(0).cloneRange(), contents: ps.contents };
+    $('#selBar').hidden = true; $('#selHint').hidden = false;
+  });
+  $('#selHintX').addEventListener('click', () => { endHint(); clearSel(); });
+  $('#selHintX').addEventListener('pointerdown', (e) => e.preventDefault());
+  rendition.on('click', (e, contents) => {
+    if (!extendFrom) return;
+    const c = contents || extendFrom.contents;
+    const doc = c.document;
+    let node, off;
+    if (doc.caretRangeFromPoint) { const r = doc.caretRangeFromPoint(e.clientX, e.clientY); if (r) { node = r.startContainer; off = r.startOffset; } }
+    else if (doc.caretPositionFromPoint) { const p = doc.caretPositionFromPoint(e.clientX, e.clientY); if (p) { node = p.offsetNode; off = p.offset; } }
+    if (!node || c !== extendFrom.contents) { endHint(); return; }
+    const base = extendFrom.range;
+    const nr = doc.createRange();
+    if (base.comparePoint(node, off) >= 0) { nr.setStart(base.startContainer, base.startOffset); nr.setEnd(node, wordEdge(node, off, 1)); }
+    else { nr.setStart(node, wordEdge(node, off, -1)); nr.setEnd(base.endContainer, base.endOffset); }
+    const sel = c.window.getSelection();
+    sel.removeAllRanges(); sel.addRange(nr);
+    let cfi = ''; try { cfi = c.cfiFromRange(nr); } catch (err) {}
+    endHint();
+    if (!cfi || !nr.toString().trim()) return;
+    pendingSel = { cfi, text: nr.toString().trim(), contents: c };
+    $('#selBar').hidden = false;
+  });
+  ['selTo'].forEach(id => $('#' + id).addEventListener('pointerdown', (e) => e.preventDefault()));
   $('#selSent').addEventListener('click', () => expandSel('s'));
   $('#selPara').addEventListener('click', () => expandSel('p'));
 

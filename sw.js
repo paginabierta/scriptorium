@@ -1,5 +1,5 @@
 // Permite abrir Scriptorium sin conexión. Cambia VERSION cada vez que publiques cambios.
-const VERSION = 'scriptorium-v0.5.2';
+const VERSION = 'scriptorium-v0.5.3';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/db.js', 'js/drive.js', 'js/sync.js', 'js/liturgia.js', 'js/config.js', 'js/core.js',
