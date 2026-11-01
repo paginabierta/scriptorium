@@ -70,20 +70,31 @@ export class BibliaTool {
     w.className = 'blk blk-biblia';
     const ref = document.createElement('input');
     ref.className = 'blk-ref';
-    ref.placeholder = this.data.label ? `${this.data.label}: cita (ej. Jn 3, 16)` : 'Cita (por ejemplo: Jn 3, 16)';
+    ref.placeholder = 'Cita (por ejemplo: Jn 3, 16)';
     ref.value = this.data.ref;
     ref.readOnly = this.readOnly;
     ref.setAttribute('aria-label', 'Referencia bíblica');
     ref.addEventListener('blur', () => { ref.value = normalizeRef(ref.value); });
-    ref.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ref.value = normalizeRef(ref.value); this.textEl.focus(); } });
+    ref.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ref.value = normalizeRef(ref.value); this.textEl.focus(); } e.stopPropagation(); });
+    ref.addEventListener('paste', (e) => e.stopPropagation());
     this.refEl = ref;
     this.textEl = editable(this.data.text, 'blk-text', 'Pega aquí el texto bíblico', this.readOnly);
-    if (this.data.label) { const l = document.createElement('div'); l.className = 'blk-label'; l.textContent = this.data.label; w.append(l); }
+    const lab = document.createElement('input');
+    lab.className = 'blk-label';
+    lab.value = this.data.label || '';
+    lab.placeholder = 'Etiqueta (opcional: Primera lectura, Evangelio…)';
+    lab.readOnly = this.readOnly;
+    lab.setAttribute('aria-label', 'Etiqueta de la cita');
+    lab.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.textEl.focus(); } e.stopPropagation(); });
+    lab.addEventListener('paste', (e) => e.stopPropagation());
+    this.labEl = lab;
+    w.append(lab);
     w.append(this.textEl, ref);
     return w;
   }
-  save() { const d = { ref: normalizeRef(this.refEl.value), text: this.textEl.innerHTML }; if (this.data.label) d.label = this.data.label; return d; }
-  validate(d) { return !!(d.ref || d.text); }
+  save() { const d = { ref: normalizeRef(this.refEl.value), text: this.textEl.innerHTML }; const l = this.labEl?.value.trim(); if (l) d.label = l; return d; }
+  static get sanitize() { return { ref: false, label: false, text: { b: {}, i: {}, u: {}, s: {}, strike: {}, br: {}, a: { href: true }, span: { class: true }, mark: { class: true } } }; }
+  validate(d) { return !!(d.ref || d.text || d.label); }
 }
 
 /* ---------- Cita del magisterio ---------- */
@@ -121,6 +132,7 @@ export class MagisterioTool {
     return w;
   }
   save() { return { doc: this.sel.value, otro: this.otro.value.trim(), num: this.num.value.trim(), text: this.textEl.innerHTML }; }
+  static get sanitize() { return { doc: false, otro: false, num: false, text: { b: {}, i: {}, u: {}, s: {}, strike: {}, br: {}, a: { href: true }, span: { class: true }, mark: { class: true } } }; }
   validate(d) { return !!(d.text || d.num); }
 }
 

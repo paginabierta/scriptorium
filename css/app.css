@@ -476,3 +476,43 @@ a.pill:hover { border-color: #C9BBA3; color: var(--ink); }
 .field.check { flex-direction: row; align-items: center; gap: 8px; align-self: flex-end; min-height: 42px; color: var(--ink); font-size: 14px; }
 .field.check input { width: 18px; height: 18px; min-height: 0; accent-color: var(--accent); }
 @media (max-width: 900px) { .cal-ev { display: none; } .cal-day:has(.cal-ev) .cal-num::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: #3E4C8A; margin-left: auto; } }
+
+/* ---------- Barra de formato ---------- */
+.fmt-bar { position: sticky; top: 0; z-index: 15; display: flex; align-items: center; gap: 2px; flex-wrap: wrap; background: rgba(246, 241, 231, .96); backdrop-filter: blur(6px); border: 1px solid var(--line); border-radius: 12px; padding: 5px 6px; margin: 0 0 18px; box-shadow: 0 2px 10px rgba(30, 27, 22, .05); }
+.fmt-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 0; border-radius: 8px; background: none; color: var(--ink); cursor: pointer; flex: none; }
+.fmt-btn:hover { background: var(--soft); }
+.fmt-btn.on { background: var(--surface); box-shadow: inset 0 0 0 1px #C9BBA3; color: var(--accent); }
+.fmt-sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; flex: none; }
+.fmt-style { min-height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 0 8px; font-size: 14px; color: var(--ink); margin-right: 2px; }
+.fmt-style:disabled { opacity: .5; }
+.fmt-palette { position: fixed; z-index: 60; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 30px rgba(30, 27, 22, .18); padding: 10px 12px; width: 272px; }
+.fp-sec + .fp-sec { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.fp-title { font-size: 11px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.fp-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.fp-swatch { width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.fp-swatch span { color: var(--sw); font-weight: 700; font-family: var(--serif); font-size: 16px; }
+.fp-swatch.mark { background: var(--sw); }
+.fp-swatch.none { background: linear-gradient(135deg, transparent 45%, #B42318 46%, #B42318 54%, transparent 55%), var(--surface); }
+.fp-swatch:hover { box-shadow: 0 0 0 2px var(--accent); }
+.fp-size { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 4px 9px; cursor: pointer; color: var(--ink); min-height: 30px; }
+.fp-size:hover { border-color: var(--accent); }
+.align-wrap[data-align="center"] { text-align: center; }
+.align-wrap[data-align="right"] { text-align: right; }
+.align-wrap[data-align="justify"] { text-align: justify; }
+.editor h1.ce-header { font-family: var(--serif); font-weight: 500; font-size: 36px; margin: 20px 0 6px; }
+.editor u { text-underline-offset: 3px; }
+.editor mark, .review-body mark { color: inherit; border-radius: 2px; padding: 0 1px; }
+/* Bloques de lectura: sin cursiva fija */
+.blk .blk-text { font-style: normal; font-size: 18px; }
+.blk-label { display: block; border: 0; background: transparent; font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin: 0 0 4px 21px; padding: 2px 0; width: calc(100% - 21px); outline: none; font-family: var(--sans); }
+.blk-label::placeholder { text-transform: none; letter-spacing: 0; font-weight: 400; color: #B9AC96; }
+.blk-label:focus { color: var(--ink); }
+.review-body blockquote.biblia, .review-body blockquote.magisterio { font-style: normal; }
+.review-body blockquote small { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+.focus-mode .fmt-bar { opacity: .35; transition: opacity .2s; }
+.focus-mode .fmt-bar:hover, .focus-mode .fmt-bar:focus-within { opacity: 1; }
+@media (max-width: 900px) {
+  .fmt-bar { top: 61px; flex-wrap: nowrap; overflow-x: auto; border-radius: 10px; scrollbar-width: none; }
+  .fmt-bar::-webkit-scrollbar { display: none; }
+  .fmt-btn { width: 40px; height: 40px; }
+}

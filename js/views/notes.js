@@ -466,7 +466,7 @@ export function viewSpaces() {
         <label class="merge"><span class="sr">Unir ${esc(s.name)} con otro espacio</span>
           <select data-act="merge"><option value="">Unir con…</option>${spacesOrdered(true).filter(o => o.id !== s.id).map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select>
         </label>
-        ${notesIn(s.id).length === 0 ? `<button type="button" class="btn sm danger" data-act="delete">Eliminar</button>` : ''}
+        <button type="button" class="btn sm danger" data-act="delete">Eliminar</button>
       </div>
     </div>`;
   view().innerHTML = `
@@ -500,7 +500,7 @@ export function viewSpaces() {
       }
       if (a === 'archive') { s.archived = true; await save(s); toast(`«${s.name}» archivado`); }
       if (a === 'unarchive') { s.archived = false; s.order = spacesOrdered().length; await save(s); toast(`«${s.name}» volvió al menú`); }
-      if (a === 'delete') { if (!await confirmDialog('Eliminar espacio', `¿Eliminar el espacio «${s.name}»? Está vacío.`, { okLabel: 'Eliminar', danger: true })) return; s.deleted = true; await save(s); }
+      if (a === 'delete') { if (!await deleteSpace(s)) return; }
       viewSpaces(); refresh();
     });
     $('input[data-act="name"]', rowEl).addEventListener('change', async (e) => {
@@ -535,6 +535,37 @@ export function viewSpaces() {
     viewSpaces(); refresh();
     $('#newSpaceName').focus();
   });
+}
+
+async function deleteSpace(s) {
+  const notes = notesIn(s.id);
+  const others = spacesOrdered(true).filter(o => o.id !== s.id);
+  if (!notes.length) {
+    if (!await confirmDialog('Eliminar espacio', `¿Eliminar el espacio «${s.name}»? Está vacío.`, { okLabel: 'Eliminar', danger: true })) return false;
+    s.deleted = true; await save(s); toast(`«${s.name}» eliminado`); return true;
+  }
+  const choice = await dialog({
+    title: `Eliminar «${s.name}»`,
+    body: `<p>Este espacio tiene ${notes.length === 1 ? '1 nota' : notes.length + ' notas'}. ¿Qué hacemos con ellas?</p>
+      ${others.length ? `<label class="field"><span>Pasarlas a</span><select name="to">${others.map(o => `<option value="${o.id}">${esc(o.name)}${o.archived ? ' (archivado)' : ''}</option>`).join('')}</select></label>` : ''}`,
+    actions: [
+      { label: 'Cancelar', value: null },
+      { label: 'Enviarlas a la papelera', danger: true, value: 'trash' },
+      ...(others.length ? [{ label: 'Mover y eliminar', primary: true, value: (d) => 'move:' + d.querySelector('[name=to]').value }] : []),
+    ],
+  });
+  if (!choice) return false;
+  if (choice === 'trash') {
+    if (!await confirmDialog('Enviar a la papelera', `Las ${notes.length} notas irán a la papelera (podrás recuperarlas allí) y el espacio se eliminará.`, { okLabel: 'Eliminar', danger: true })) return false;
+    const fallback = others.find(o => !o.archived) || others[0];
+    for (const n of notes) { n.deleted = true; n.deletedAt = Date.now(); if (fallback) n.spaceId = fallback.id; await save(n); }
+  } else {
+    const to = choice.slice(5);
+    for (const n of notes) { n.spaceId = to; await save(n); }
+  }
+  s.deleted = true; await save(s);
+  toast(`«${s.name}» eliminado`);
+  return true;
 }
 
 /* ---------- Búsqueda ---------- */

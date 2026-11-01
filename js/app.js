@@ -26,11 +26,14 @@ async function seed() {
   const st = settings();
   const recs = [];
   if (!S.spaces.size && !S.notes.size) {
-    const spaces = ESPACIOS_INICIALES.map(([name, color], i) => ({ id: db.uid('s'), type: 'space', name, color, order: i, archived: false, created: now, updated: now }));
+    const slug = (t) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-');
+    // Los registros iniciales llevan seed:true y updated:1. Si este aparato se conecta a un Drive que ya tiene datos,
+    // se descartan en la primera sincronización (así no aparecen espacios ni plantillas repetidos).
+    const spaces = ESPACIOS_INICIALES.map(([name, color], i) => ({ id: 's-ini-' + slug(name), type: 'space', name, color, order: i, archived: false, created: now, updated: 1, seed: true }));
     recs.push(...spaces);
     recs.push({
-      id: db.uid('n'), type: 'note', spaceId: spaces[6].id, parentId: null, title: 'Bienvenido a Scriptorium', tags: ['inicio'],
-      created: now, updated: now,
+      id: 'n-ini-bienvenida', type: 'note', spaceId: spaces[6].id, parentId: null, title: 'Bienvenido a Scriptorium', tags: ['inicio'],
+      created: now, updated: 1, seed: true,
       content: { blocks: [
         { type: 'paragraph', data: { text: 'Este es tu cuaderno. Todo se guarda en este aparato y, con Google conectado, también en tu Drive.' } },
         { type: 'header', data: { text: 'Para empezar', level: 3 } },
@@ -44,8 +47,9 @@ async function seed() {
     });
   }
   if (!st.seededTemplates) {
-    if (!live('templates').length) DEFAULT_TEMPLATES.forEach((t, i) => recs.push({ id: db.uid('t'), type: 'template', name: t.name, content: { blocks: t.blocks }, order: i, builtin: t.key, created: now, updated: now }));
-    st.seededTemplates = true; st.updated = now; recs.push(st);
+    if (!live('templates').length) DEFAULT_TEMPLATES.forEach((t, i) => recs.push({ id: 't-ini-' + t.key, type: 'template', name: t.name, content: { blocks: t.blocks }, order: i, builtin: t.key, created: now, updated: 1, seed: true }));
+    // Nunca marcar los ajustes como recientes aquí: no deben pisar los ajustes guardados en Drive (contraseña del espacio Privado, etc.)
+    st.seededTemplates = true; if (!st.updated) st.updated = 1; recs.push(st);
   }
   if (recs.length) { await db.putMany(recs); await loadAll(); }
 }

@@ -41,7 +41,7 @@ export function fechaCorta(d) { return `${d.getDate()} de ${MESES[d.getMonth()]}
 export function isoDate(d = new Date()) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 export function parseISO(s) { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); }
 export function hace(ts) {
-  if (!ts) return '';
+  if (!ts || ts < 1e11) return '';
   const s = Math.round((Date.now() - ts) / 1000);
   if (s < 60) return 'hace un momento';
   if (s < 3600) return `hace ${Math.round(s / 60)} min`;

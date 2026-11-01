@@ -44,6 +44,7 @@ export const getAll = () => run(STORE, 'readonly', s => s.getAll());
 export const get = (id) => run(STORE, 'readonly', s => s.get(id));
 export const put = (record) => run(STORE, 'readwrite', s => { s.put(record); return record; });
 export const putMany = (records) => run(STORE, 'readwrite', s => { records.forEach(r => s.put(r)); return records.length; });
+export const removeMany = (ids) => run(STORE, 'readwrite', s => { ids.forEach(id => s.delete(id)); return ids.length; });
 export const clearAll = () => run(STORE, 'readwrite', s => { s.clear(); });
 
 export const getFile = (key) => run(FILES, 'readonly', s => s.get(key));

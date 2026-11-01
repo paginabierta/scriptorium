@@ -2,6 +2,10 @@
 import { esc, stripTags, settings } from './core.js';
 import { BibliaTool, MagisterioTool, ReferenciaTool, magisterioCita } from './blocks.js';
 import { formatAPA } from './apa.js';
+import { UnderlineTool, StrikeTool, StyleTool, AlignTune, attachToolbar, formatCSS } from './format.js';
+
+// Estilos de color, resaltado, tamaño y alineación (los mismos que usan las exportaciones)
+if (!document.getElementById('fmt-css')) { const st = document.createElement('style'); st.id = 'fmt-css'; st.textContent = formatCSS(); document.head.appendChild(st); }
 
 export const EDITOR_I18N = {
   messages: {
@@ -13,7 +17,7 @@ export const EDITOR_I18N = {
     },
     toolNames: {
       Text: 'Texto', Heading: 'Título', 'Unordered List': 'Lista', 'Ordered List': 'Lista numerada', Checklist: 'Casillas',
-      Quote: 'Cita', Delimiter: 'Separador', Bold: 'Negrita', Italic: 'Cursiva', Link: 'Enlace', List: 'Lista',
+      Quote: 'Cita', Delimiter: 'Separador', Bold: 'Negrita', Italic: 'Cursiva', Link: 'Enlace', List: 'Lista', Underline: 'Subrayado', Strike: 'Tachado', Estilo: 'Color y tamaño', Align: 'Alineación', Biblia: 'Cita bíblica', Magisterio: 'Magisterio', Referencia: 'Referencia APA',
     },
     tools: {
       link: { 'Add a link': 'Pega un enlace' },
@@ -29,21 +33,26 @@ export const EDITOR_I18N = {
 };
 
 export function createEditor(holder, data, { onChange, placeholder, minimal = false, readOnly = false } = {}) {
+  const inline = ['bold', 'italic', 'underline', 'strike', 'estilo', 'link'];
   const tools = {
-    header: { class: Header, inlineToolbar: true, config: { levels: [2, 3, 4], defaultLevel: 2, placeholder: 'Título' } },
-    list: { class: EditorjsList, inlineToolbar: true, config: { defaultStyle: 'unordered' } },
-    quote: { class: Quote, inlineToolbar: true, config: { quotePlaceholder: 'Cita', captionPlaceholder: 'Fuente' } },
+    paragraph: { inlineToolbar: inline, tunes: ['align'] },
+    header: { class: Header, inlineToolbar: inline, tunes: ['align'], config: { levels: [1, 2, 3, 4], defaultLevel: 2, placeholder: 'Título' } },
+    list: { class: EditorjsList, inlineToolbar: inline, tunes: ['align'], config: { defaultStyle: 'unordered' } },
+    quote: { class: Quote, inlineToolbar: inline, tunes: ['align'], config: { quotePlaceholder: 'Cita', captionPlaceholder: 'Fuente' } },
     delimiter: Delimiter,
+    underline: { class: UnderlineTool },
+    strike: { class: StrikeTool },
+    estilo: { class: StyleTool },
+    align: { class: AlignTune },
+    biblia: { class: BibliaTool, inlineToolbar: inline, tunes: ['align'] },
   };
   if (!minimal) {
-    tools.checklist = { class: Checklist, inlineToolbar: true };
-    tools.biblia = { class: BibliaTool };
-    tools.magisterio = { class: MagisterioTool };
+    tools.checklist = { class: Checklist, inlineToolbar: inline, tunes: ['align'] };
+    tools.magisterio = { class: MagisterioTool, inlineToolbar: inline, tunes: ['align'] };
     tools.referencia = { class: ReferenciaTool };
-  } else {
-    tools.biblia = { class: BibliaTool };
   }
-  return new EditorJS({
+  const el = typeof holder === 'string' ? document.getElementById(holder) : holder;
+  const editor = new EditorJS({
     holder,
     data: data?.blocks?.length ? data : { blocks: [] },
     placeholder: placeholder || 'Escribe aquí… Pulsa Tab para elegir un tipo de bloque',
@@ -52,6 +61,15 @@ export function createEditor(holder, data, { onChange, placeholder, minimal = fa
     tools,
     onChange: () => onChange?.(),
   });
+  if (!readOnly && el) {
+    editor.isReady.then(() => {
+      if (!el.isConnected) return;
+      const detach = attachToolbar(el, editor);
+      const destroy = editor.destroy.bind(editor);
+      editor.destroy = () => { detach(); try { destroy(); } catch (e) {} };
+    }).catch(() => {});
+  }
+  return editor;
 }
 
 /* ---------- Conversión ---------- */
@@ -67,6 +85,13 @@ function listItemsHtml(items, style) {
 export function blocksToHtml(blocks = []) {
   const conn = settings().apaConnector || 'y';
   return blocks.map(b => {
+    const al = b.tunes?.align?.alignment;
+    const html = blockHtml(b, conn);
+    return al && al !== 'left' && html ? `<div data-align="${al}">${html}</div>` : html;
+  }).join('\n');
+}
+
+function blockHtml(b, conn) {
     const d = b.data || {};
     switch (b.type) {
       case 'paragraph': return `<p>${d.text || ''}</p>`;
@@ -80,7 +105,6 @@ export function blocksToHtml(blocks = []) {
       case 'referencia': return `<p class="apa">${formatAPA(d, conn)}</p>`;
       default: return d.text ? `<p>${d.text}</p>` : '';
     }
-  }).join('\n');
 }
 
 export function blocksToText(blocks = []) {

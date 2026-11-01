@@ -56,15 +56,27 @@ export async function syncNow() {
     emit('syncing', 'Sincronizando…');
     try {
       const startedAt = Date.now();
-      const local = await db.getAll();
+      let local = await db.getAll();
       const remote = await drive.download();
+      let dropped = 0;
+      // Primera sincronización de un aparato nuevo contra un Drive con datos: descartar los registros iniciales sin tocar
+      if (!state.lastSync && remote?.records?.length) {
+        const remoteIds = new Set(remote.records.map(r => r.id));
+        const untouched = local.filter(r => r.seed && (r.updated || 0) <= 1 && !remoteIds.has(r.id));
+        if (untouched.length) {
+          await db.removeMany(untouched.map(r => r.id));
+          const gone = new Set(untouched.map(r => r.id));
+          local = local.filter(r => !gone.has(r.id));
+          dropped = untouched.length;
+        }
+      }
       const { merged, changedLocal } = merge(local, remote?.records || [], state.lastSync);
       if (changedLocal.length) await db.putMany(changedLocal);
       await drive.upload({ app: 'Scriptorium', version: 1, savedAt: startedAt, records: merged });
       state.lastSync = startedAt;
       localStorage.setItem(LAST, String(startedAt));
       emit('ok', '');
-      return changedLocal.length;
+      return changedLocal.length + dropped;
     } catch (e) {
       if (e.code === 'AUTH') emit('auth', 'Toca para reconectar con Google');
       else emit('error', e.message || 'No se pudo sincronizar');

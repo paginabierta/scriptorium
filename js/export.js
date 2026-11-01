@@ -4,6 +4,7 @@ import { blocksToHtml, blocksToMarkdown } from './editor.js';
 import { formatAPA } from './apa.js';
 import { settings } from './core.js';
 import { magisterioCita } from './blocks.js';
+import { colorHex, markHex, sizeFactor, formatCSS } from './format.js';
 
 /* ---------- Word (.docx) hecho a mano con JSZip ---------- */
 const xmlEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -22,15 +23,19 @@ function runs(html = '', base = {}) {
       if (tag === 'b' || tag === 'strong') f.b = true;
       if (tag === 'i' || tag === 'em') f.i = true;
       if (tag === 'u') f.u = true;
-      if (tag === 'mark') f.hl = true;
+      if (tag === 's' || tag === 'strike' || tag === 'del') f.st = true;
+      if (tag === 'mark') f.hl = markHex([...n.classList].find(c => c.startsWith('mark-'))) || '#FBE7A1';
+      n.classList?.forEach(c => { if (colorHex(c)) f.color = colorHex(c); if (sizeFactor(c)) f.size = sizeFactor(c); });
       walk(n, f);
     });
   };
   walk(doc.body.firstChild, base);
   return out.map(r => r.br ? '<w:r><w:br/></w:r>' :
-    `<w:r><w:rPr>${r.b ? '<w:b/>' : ''}${r.i ? '<w:i/>' : ''}${r.u ? '<w:u w:val="single"/>' : ''}${r.hl ? '<w:highlight w:val="yellow"/>' : ''}</w:rPr><w:t xml:space="preserve">${xmlEsc(r.text)}</w:t></w:r>`).join('');
+    `<w:r><w:rPr>${r.b ? '<w:b/>' : ''}${r.i ? '<w:i/>' : ''}${r.st ? '<w:strike/>' : ''}${r.color ? `<w:color w:val="${r.color.slice(1)}"/>` : ''}${r.size ? `<w:sz w:val="${Math.round(24 * r.size)}"/>` : ''}${r.u ? '<w:u w:val="single"/>' : ''}${r.hl ? `<w:shd w:val="clear" w:color="auto" w:fill="${r.hl.slice(1)}"/>` : ''}</w:rPr><w:t xml:space="preserve">${xmlEsc(r.text)}</w:t></w:r>`).join('');
 }
-const para = (html, style, extra = '') => `<w:p><w:pPr>${style ? `<w:pStyle w:val="${style}"/>` : ''}${extra}</w:pPr>${runs(html)}</w:p>`;
+let curJc = '';
+const JC = { center: 'center', right: 'right', justify: 'both' };
+const para = (html, style, extra = '') => `<w:p><w:pPr>${style ? `<w:pStyle w:val="${style}"/>` : ''}${extra}${curJc ? `<w:jc w:val="${curJc}"/>` : ''}</w:pPr>${runs(html)}</w:p>`;
 
 function blocksToDocx(blocks = []) {
   const conn = settings().apaConnector || 'y';
@@ -43,18 +48,20 @@ function blocksToDocx(blocks = []) {
   });
   for (const b of blocks) {
     const d = b.data || {};
+    curJc = JC[b.tunes?.align?.alignment] || '';
     switch (b.type) {
       case 'paragraph': out.push(para(d.text || '', 'Normal')); break;
-      case 'header': out.push(para(d.text || '', `Ttulo${Math.min(3, Math.max(1, (d.level || 2) - 1))}`)); break;
+      case 'header': out.push(para(d.text || '', `Ttulo${Math.min(3, Math.max(1, d.level || 2))}`)); break;
       case 'list': list(d.items, d.style); break;
       case 'checklist': (d.items || []).forEach(i => out.push(para((i.checked ? '☑ ' : '☐ ') + (i.text || ''), 'Lista', '<w:ind w:left="360" w:hanging="280"/>'))); break;
       case 'quote': out.push(para(d.text || '', 'Cita')); if (d.caption) out.push(para('— ' + d.caption, 'Fuente')); break;
-      case 'biblia': out.push(para(d.text || '', 'Cita')); if (d.ref) out.push(para(`(${esc(d.ref)})`, 'Fuente')); break;
+      case 'biblia': if (!d.text && !d.ref) break; if (d.label) out.push(para(`<b>${esc(d.label)}</b>`, 'Normal')); out.push(para(d.text || '', 'Lectura')); if (d.ref) out.push(para(`(${esc(d.ref)})`, 'Fuente')); break;
       case 'magisterio': out.push(para(d.text || '', 'Cita')); out.push(para(`(${esc(magisterioCita(d))})`, 'Fuente')); break;
       case 'referencia': out.push(para(formatAPA(d, conn), 'Referencia')); break;
       case 'delimiter': out.push(para('* * *', 'Centro')); break;
     }
   }
+  curJc = '';
   return out.join('');
 }
 
@@ -69,6 +76,7 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:style w:type="paragraph" w:styleId="Ttulo3"><w:name w:val="heading 3"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:pPr><w:keepNext/><w:outlineLvl w:val="2"/></w:pPr><w:rPr><w:b/><w:i/></w:rPr></w:style>
 <w:style w:type="paragraph" w:styleId="Lista"><w:name w:val="Lista"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="60"/></w:pPr></w:style>
 <w:style w:type="paragraph" w:styleId="Cita"><w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="720" w:right="720"/><w:spacing w:after="40"/></w:pPr><w:rPr><w:i/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Lectura"><w:name w:val="Lectura"/><w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="720" w:right="720"/><w:spacing w:after="40"/></w:pPr></w:style>
 <w:style w:type="paragraph" w:styleId="Fuente"><w:name w:val="Fuente"/><w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="720" w:right="720"/><w:jc w:val="right"/></w:pPr><w:rPr><w:sz w:val="22"/></w:rPr></w:style>
 <w:style w:type="paragraph" w:styleId="Referencia"><w:name w:val="Referencia"/><w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="720" w:hanging="720"/></w:pPr></w:style>
 <w:style w:type="paragraph" w:styleId="Centro"><w:name w:val="Centro"/><w:basedOn w:val="Normal"/><w:pPr><w:jc w:val="center"/></w:pPr></w:style>
@@ -115,6 +123,9 @@ const PRINT_CSS = `
   blockquote { margin: 10pt 1.2cm; font-style: italic; }
   blockquote cite { display: block; text-align: right; font-style: normal; font-size: 11pt; }
   .apa { padding-left: 1.27cm; text-indent: -1.27cm; }
+  blockquote.biblia { font-style: normal; }
+  blockquote small { display: block; font-size: 10pt; text-transform: uppercase; letter-spacing: 1px; font-style: normal; }
+  ${formatCSS()}
   ul.checklist { list-style: none; padding-left: 0; }
   .cbox { display: inline-block; width: 9pt; height: 9pt; border: 1px solid #666; margin-right: 6pt; vertical-align: -1pt; }
   .cbox.on { background: #666; }
