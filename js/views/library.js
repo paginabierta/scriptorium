@@ -251,9 +251,9 @@ export async function viewReader(id) {
       <footer class="reader-foot"><div class="bar"><div id="rdBar" style="width:${b.percent || 0}%"></div></div><span id="rdPct">${Math.round(b.percent || 0)} %</span></footer>
       <aside class="reader-panel" id="rdPanel" hidden></aside>
       <div class="sel-bar" id="selBar" hidden>
-        <button type="button" class="btn sm primary" id="selHl">Subrayar</button>
-        <button type="button" class="btn sm" id="selNote">Subrayar y anotar</button>
-        <button type="button" class="icon-btn sm" id="selX" aria-label="Cancelar">${icon('x', 14)}</button>
+        <button type="button" class="sel-btn primary" id="selHl">${icon('marca', 15)}Subrayar</button>
+        <button type="button" class="sel-btn" id="selNote">${icon('lapiz', 15)}Anotar</button>
+        <button type="button" class="sel-btn x" id="selX" aria-label="Cerrar">${icon('x', 16)}</button>
       </div>
     </div>`;
 
@@ -272,6 +272,15 @@ export async function viewReader(id) {
   rendition.themes.select(prefs.theme);
   rendition.themes.fontSize(prefs.size + '%');
   rendition.themes.default({ body: { 'font-family': 'Georgia, "EB Garamond", serif !important', 'line-height': '1.6' }, '::selection': { background: 'rgba(232,184,74,.45)' } });
+  // Si la selección desaparece (tocas otra parte del texto), la barra se esconde sola
+  let suppressUntil = 0;
+  rendition.hooks.content.register((contents) => {
+    contents.document.addEventListener('selectionchange', () => {
+      const sel = contents.window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) hideSelBar();
+    });
+  });
+  const hideSelBar = () => { pendingSel = null; const bar = $('#selBar'); if (bar) bar.hidden = true; };
   await rendition.display(b.cfi || undefined).catch(() => rendition.display());
 
   const drawHl = (h) => { try { rendition.annotations.highlight(h.cfi, { id: h.id }, () => openHighlight(h.id), 'scr-hl', { fill: HL_COLOR, 'fill-opacity': '0.35', 'mix-blend-mode': 'multiply' }); } catch (e) {} };
@@ -300,12 +309,19 @@ export async function viewReader(id) {
   // Selección → subrayar
   let lastHl = '';
   rendition.on('selected', (cfiRange, contents) => {
+    if (Date.now() < suppressUntil) return;
     const text = contents.window.getSelection()?.toString().trim();
     if (!text || cfiRange === lastHl) return;
     pendingSel = { cfi: cfiRange, text, contents };
     $('#selBar').hidden = false;
   });
-  const clearSel = () => { try { pendingSel?.contents.window.getSelection().removeAllRanges(); } catch (e) {} pendingSel = null; $('#selBar').hidden = true; };
+  // Cerrar: quita la selección en todas las páginas cargadas y evita que la barra reaparezca enseguida
+  const clearSel = () => {
+    suppressUntil = Date.now() + 900;
+    try { rendition.getContents().forEach(c => c.window.getSelection().removeAllRanges()); } catch (e) {}
+    try { pendingSel?.contents.window.getSelection().removeAllRanges(); } catch (e) {}
+    hideSelBar();
+  };
   const addHl = async (withNote) => {
     if (!pendingSel) return;
     lastHl = pendingSel.cfi;
@@ -325,6 +341,7 @@ export async function viewReader(id) {
   $('#selHl').addEventListener('click', () => addHl(false));
   $('#selNote').addEventListener('click', () => addHl(true));
   $('#selX').addEventListener('click', clearSel);
+  ['selHl', 'selNote', 'selX'].forEach(id => $('#' + id).addEventListener('pointerdown', (e) => e.preventDefault()));
 
   // Navegación
   const prev = () => rendition.prev(), next = () => rendition.next();

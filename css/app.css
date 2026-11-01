@@ -17,6 +17,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; }
 body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
 a { color: var(--accent); }
@@ -391,7 +392,12 @@ a.pill:hover { border-color: #C9BBA3; color: var(--ink); }
 .hl-item blockquote { margin: 0; font-family: var(--serif); font-size: 16px; line-height: 1.45; background: #FBF1D8; border-radius: 8px; padding: 10px 12px; }
 .hl-note { margin: 6px 0 0; font-size: 14px; }
 .hl-actions { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; }
-.sel-bar { position: absolute; left: 50%; bottom: 60px; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .18); z-index: 4; }
+.sel-bar { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); display: flex; gap: 4px; align-items: center; background: var(--ink); border-radius: 999px; padding: 4px; box-shadow: 0 6px 20px rgba(0, 0, 0, .25); z-index: 4; }
+.sel-btn { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: #FFFDF8; border-radius: 999px; padding: 0 12px; min-height: 36px; font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap; }
+.sel-btn.primary { background: var(--accent); }
+.sel-btn.x { padding: 0; width: 36px; justify-content: center; }
+.sel-btn:hover { background: rgba(255, 255, 255, .12); }
+.sel-btn.primary:hover { background: var(--accent-dark); }
 
 /* Escritura */
 .proj-card { text-decoration: none; color: var(--ink); display: block; }
