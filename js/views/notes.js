@@ -2,7 +2,7 @@
 import * as db from '../db.js';
 import {
   S, $, $$, esc, debounce, toast, hace, icon, save, settings, page, refresh, dialog, askText, confirmDialog,
-  spacesOrdered, liveNotes, notesIn, childrenOf, live, PALETA, isoDate, parseISO, fechaCorta, stripTags,
+  spacesOrdered, findSpaceByName, liveNotes, notesIn, childrenOf, live, PALETA, isoDate, parseISO, fechaCorta, stripTags,
 } from '../core.js';
 import { createEditor, blocksToText, collectReferences, blocksToHtml } from '../editor.js';
 import { formatAPA, citaEnTexto } from '../apa.js';
@@ -11,6 +11,8 @@ import { exportDocx, printDocument, exportMarkdown } from '../export.js';
 import { reviewToggle } from './review.js';
 import * as gcal from '../gcal.js';
 import { scheduleNote, noteEventChip } from './agenda.js';
+import { pickBook } from './library.js';
+import { isBookTemplate, fillBlocks, BOOK_FIELDS, authorDisplay } from '../bookmeta.js';
 
 const view = () => $('#view');
 export const STATUS = { '': 'Sin estado', pendiente: 'Pendiente', curso: 'En curso', hecho: 'Hecho' };
@@ -47,6 +49,7 @@ export function pickTemplate() {
 }
 
 export async function createNote({ spaceId, parentId = null, templateId = '', title = '', fecha = '', ask = false, blocks = null, extra = {} } = {}) {
+  const askedSpace = !!spaceId;
   spaceId = spaceId || spacesOrdered()[0]?.id;
   if (!spaceId) { toast('Primero crea un espacio'); location.hash = '#/espacios'; return; }
   if (ask) {
@@ -55,6 +58,17 @@ export async function createNote({ spaceId, parentId = null, templateId = '', ti
     templateId = t;
   }
   const tpl = templateId ? S.templates.get(templateId) : null;
+  // Plantillas de lectura: elegir el libro y llenar sus datos
+  if (tpl && !blocks && isBookTemplate(tpl)) {
+    const book = await pickBook({ title: `${tpl.name}: ¿de qué libro?` });
+    if (book === null) return;
+    if (book !== 'none') {
+      blocks = fillBlocks(structuredClone(tpl.content?.blocks || []), book);
+      extra = { ...extra, bookId: book.id };
+      if (!title) title = `${tpl.name} · ${book.title}`;
+    }
+    if (!askedSpace) spaceId = (findSpaceByName('club', 'lectura') || {}).id || spaceId;
+  }
   const now = Date.now();
   const n = {
     id: db.uid('n'), type: 'note', spaceId, parentId, title: title || '', tags: [],
@@ -239,6 +253,7 @@ export function viewNote(id) {
       </div>
       <div id="litInfo"></div>
       <div id="eventInfo"></div>
+      ${n.bookId && S.books.get(n.bookId) && !S.books.get(n.bookId).deleted ? (() => { const bk = S.books.get(n.bookId); return `<div class="book-chip">${bk.cover ? `<img src="${bk.cover}" alt="">` : icon('libro', 16)}<span class="grow"><strong>${esc(bk.title)}</strong>${authorDisplay(bk) ? ' · ' + esc(authorDisplay(bk)) : ''}${bk.year ? ' · ' + esc(bk.year) : ''}${bk.pages ? ' · ' + esc(bk.pages) + ' págs.' : ''}</span>${bk.noFile ? '' : `<a class="btn sm" href="#/leer/${bk.id}">${icon('libro', 13)}Abrir</a>`}</div>`; })() : ''}
       <div id="editor" class="editor"></div>
       <p class="hint editor-hint">Escribe <code>[[Título de otra nota]]</code> para enlazarla (si no existe, se crea). Pulsa Tab o el botón + para cita bíblica, magisterio, referencia APA, casillas…</p>
       ${kids.length ? `<section class="subpages"><h2 class="card-title">Subpáginas</h2><div class="rows">${kids.map(k => noteRow(k, { showSpace: false })).join('')}</div></section>` : ''}
@@ -687,6 +702,13 @@ function viewTemplate(id) {
       <input id="tplName" class="note-title" value="${esc(t.name)}" placeholder="Nombre de la plantilla">
       <div class="note-meta"><span class="hint">Lo que escribas aquí aparecerá en cada nota nueva creada con esta plantilla.</span><span class="grow"></span>
         <button type="button" class="btn sm danger" id="delTpl">${icon('papelera', 14)}Eliminar plantilla</button></div>
+      <section class="tpl-book">
+        <label class="cal-opt"><input type="checkbox" id="tplBook" ${isBookTemplate(t) ? 'checked' : ''}><span class="grow"><strong>Usar un libro de la Biblioteca</strong><span class="hint"> · al crear la nota te pregunta qué libro y llena sus datos</span></span></label>
+        <div id="tplFields" ${isBookTemplate(t) ? '' : 'hidden'}>
+          <p class="hint">Escribe estos campos en cualquier parte de la plantilla y se reemplazan por los datos del libro. Un bloque de «Referencia APA» vacío se llena solo. Toca un campo para copiarlo.</p>
+          <div class="ph-list">${BOOK_FIELDS.map(([k, label]) => `<button type="button" class="ph" data-ph="{{libro.${k}}}" title="${label}">{{libro.${k}}}<small>${label}</small></button>`).join('')}</div>
+        </div>
+      </section>
       <div id="editor" class="editor"></div>
       <div class="saved" id="savedMark"></div>
     </article>`;
@@ -700,6 +722,8 @@ function viewTemplate(id) {
   const queue = debounce(() => { saving = saving.then(doSave); }, 700);
   const editor = createEditor('editor', t.content, { onChange: queue });
   $('#tplName').addEventListener('input', queue);
+  $('#tplBook').addEventListener('change', async (e) => { t.book = e.target.checked; await save(t); $('#tplFields').hidden = !t.book; });
+  $$('.ph').forEach(b => b.addEventListener('click', async () => { try { await navigator.clipboard.writeText(b.dataset.ph); toast(`Copiado: ${b.dataset.ph}`); } catch (e) { toast(b.dataset.ph); } }));
   page.flush = () => queue.flush();
   page.cleanup = async () => { queue.flush(); await saving; try { editor.destroy(); } catch (e) {} };
   $('#delTpl').addEventListener('click', async () => {

@@ -5,6 +5,7 @@ import {
   S, $, $$, esc, icon, save, toast, live, page, dialog, confirmDialog, findSpaceByName, refresh, hace, debounce,
 } from '../core.js';
 import { createNote } from './notes.js';
+import { readEpubMeta, authorDisplay, authorNeedsReview, fillBlocks } from '../bookmeta.js';
 
 /* ---------- Archivos: local + Drive ---------- */
 export async function syncBooks() {
@@ -50,23 +51,49 @@ async function coverDataUrl(book) {
 
 async function importEpub(file) {
   const buf = await file.arrayBuffer();
-  let meta = {}, cover = '';
+  let meta = {}, cover = '', full = null;
   try {
-    const book = ePub(buf);
+    const book = ePub(buf.slice(0));
     meta = await book.loaded.metadata;
     cover = await coverDataUrl(book);
+    await book.ready.catch(() => {});
     book.destroy();
   } catch (e) { throw new Error('No pude abrir ese archivo. ¿Es un EPUB sin protección (DRM)?'); }
+  try { full = await readEpubMeta(buf.slice(0)); } catch (e) { /* nos quedamos con lo básico */ }
   const now = Date.now();
   const rec = {
-    id: db.uid('b'), type: 'book', title: meta.title || file.name.replace(/\.epub$/i, ''), author: meta.creator || '',
-    publisher: meta.publisher || '', year: (meta.pubdate || '').slice(0, 4), cover, size: file.size,
-    percent: 0, cfi: '', highlights: [], club: false, created: now, updated: now, pendingUpload: true,
+    id: db.uid('b'), type: 'book', title: full?.title || meta.title || file.name.replace(/\.epub$/i, ''),
+    author: full?.authors?.length ? full.authors.join('\n') : (meta.creator || ''),
+    publisher: full?.publisher || meta.publisher || '', year: full?.year || (meta.pubdate || '').slice(0, 4),
+    pages: full?.pages || '', isbn: full?.isbn || '', language: full?.language || meta.language || '',
+    description: full?.description || '', subjects: full?.subjects || [], edition: '', metaV: 2,
+    cover, size: file.size, percent: 0, cfi: '', highlights: [], club: false, created: now, updated: now, pendingUpload: true,
   };
   await db.putFile(rec.id, new Blob([buf], { type: 'application/epub+zip' }));
   await save(rec, { touch: false });
   syncBooks();
   return rec;
+}
+
+// Libros importados antes: completar los datos que falten leyendo su archivo
+async function backfillMeta() {
+  let changed = false;
+  for (const b of live('books')) {
+    if (b.metaV >= 2 || b.noFile) continue;
+    const blob = await db.getFile(b.id);
+    if (!blob) continue;
+    try {
+      const m = await readEpubMeta(await blob.arrayBuffer());
+      if (!b.pages && m.pages) b.pages = m.pages;
+      if (!b.isbn && m.isbn) b.isbn = m.isbn;
+      if (!b.language && m.language) b.language = m.language;
+      if (!b.description && m.description) b.description = m.description;
+      if (!b.subjects?.length && m.subjects?.length) b.subjects = m.subjects;
+      if (m.authors?.length && m.authors.some(x => x.includes(',')) && !String(b.author || '').includes(',')) b.author = m.authors.join('\n');
+      b.metaV = 2; await save(b); changed = true;
+    } catch (e) { b.metaV = 2; await save(b, { touch: false }); }
+  }
+  return changed;
 }
 
 /* ---------- Biblioteca ---------- */
@@ -82,20 +109,22 @@ export function viewLibrary(filter = '') {
             <a class="${filter !== 'club' ? 'on' : ''}" href="#/biblioteca">Todos</a>
             <a class="${filter === 'club' ? 'on' : ''}" href="#/biblioteca/club">Del club</a>
           </div>
+          <button type="button" class="btn" id="addPaper">${icon('libro', 14)}Libro sin archivo</button>
           <label class="btn primary">${icon('mas', 14)}Agregar EPUB<input type="file" id="epubIn" accept=".epub,application/epub+zip" multiple hidden></label>
         </div>
       </header>
       ${!drive.isConnected() ? `<p class="hint">Con Google Drive conectado, los libros quedan en tu Drive y los puedes abrir desde cualquier aparato.</p>` : ''}
       ${shown.length ? `<div class="shelf">${shown.map(b => `
         <article class="book">
-          <a href="#/leer/${b.id}" class="book-cover" aria-label="Leer ${esc(b.title)}">
+          <a href="${b.noFile ? '#/biblioteca' : '#/leer/' + b.id}" class="book-cover" ${b.noFile ? `data-edit="${b.id}"` : ''} aria-label="${b.noFile ? 'Datos de' : 'Leer'} ${esc(b.title)}">
             ${b.cover ? `<img src="${b.cover}" alt="">` : `<span class="book-fake">${esc(b.title)}</span>`}
           </a>
           <div class="book-info">
-            <a href="#/leer/${b.id}" class="book-title">${esc(b.title)}</a>
-            <span class="book-author">${esc(b.author || '')}</span>
-            <div class="bar"><div style="width:${Math.round(b.percent || 0)}%"></div></div>
-            <span class="book-meta">${Math.round(b.percent || 0)} %${b.highlights?.length ? ` · ${b.highlights.length} subrayado${b.highlights.length > 1 ? 's' : ''}` : ''}${b.club ? ' · club' : ''}</span>
+            <a href="${b.noFile ? '#/biblioteca' : '#/leer/' + b.id}" class="book-title" ${b.noFile ? `data-edit="${b.id}"` : ''}>${esc(b.title)}</a>
+            <span class="book-author">${esc(authorDisplay(b))}${b.year ? ' · ' + esc(b.year) : ''}</span>
+            ${b.noFile ? '<span class="book-meta">Libro físico o sin archivo</span>' : `<div class="bar"><div style="width:${Math.round(b.percent || 0)}%"></div></div>
+            <span class="book-meta">${Math.round(b.percent || 0)} %${b.highlights?.length ? ` · ${b.highlights.length} subrayado${b.highlights.length > 1 ? 's' : ''}` : ''}${b.club ? ' · club' : ''}</span>`}
+            ${authorNeedsReview(b) ? '<span class="book-warn">Revisa el autor: escríbelo como «Apellido, Nombre»</span>' : ''}
             <div class="book-actions">
               <button type="button" class="btn sm" data-edit="${b.id}">Datos</button>
               <button type="button" class="btn sm" data-club="${b.id}">${b.club ? 'Quitar del club' : 'Libro del club'}</button>
@@ -117,7 +146,9 @@ export function viewLibrary(filter = '') {
   $$('[data-club]').forEach(btn => btn.addEventListener('click', async () => {
     const b = S.books.get(btn.dataset.club); b.club = !b.club; await save(b); viewLibrary(filter);
   }));
-  $$('[data-edit]').forEach(btn => btn.addEventListener('click', () => editBook(S.books.get(btn.dataset.edit)).then(() => viewLibrary(filter))));
+  $$('[data-edit]').forEach(btn => btn.addEventListener('click', (e) => { e.preventDefault(); editBook(S.books.get(btn.dataset.edit)).then(() => viewLibrary(filter)); }));
+  $('#addPaper').addEventListener('click', async () => { const b = await newPaperBook(); if (b) { toast(`«${b.title}» agregado`); viewLibrary(filter); refresh(); } });
+  backfillMeta().then(ch => { if (ch && location.hash.startsWith('#/biblioteca')) viewLibrary(filter); });
   $$('[data-del]').forEach(btn => btn.addEventListener('click', async () => {
     const b = S.books.get(btn.dataset.del);
     if (!await confirmDialog('Eliminar libro', `¿Quitar «${b.title}» de tu biblioteca? Se borran también sus subrayados (las notas que ya creaste se quedan).`, { okLabel: 'Eliminar', danger: true })) return;
@@ -128,19 +159,65 @@ export function viewLibrary(filter = '') {
   }));
 }
 
-async function editBook(b) {
+const BOOK_FORM = [
+  ['title', 'Título', 'wide'], ['author', 'Autores (uno por línea, como «Apellido, Nombre»)', 'area'],
+  ['year', 'Año'], ['publisher', 'Editorial'], ['edition', 'Edición (número, si no es la 1.ª)'], ['pages', 'Número de páginas'],
+  ['isbn', 'ISBN'], ['language', 'Idioma'], ['subjects', 'Temas (separados por coma)', 'wide'], ['description', 'Sinopsis', 'area'],
+];
+
+export async function editBook(b, { title = 'Datos del libro' } = {}) {
+  const val = (k) => k === 'subjects' ? (b.subjects || []).join(', ') : (b[k] || '');
   const r = await dialog({
-    title: 'Datos del libro',
-    body: `<label class="field"><span>Título</span><input name="title" value="${esc(b.title)}"></label>
-      <label class="field"><span>Autor (Apellido, Nombres)</span><input name="author" value="${esc(b.author || '')}"></label>
-      <div class="field-row"><label class="field"><span>Año</span><input name="year" value="${esc(b.year || '')}"></label>
-      <label class="field"><span>Editorial</span><input name="publisher" value="${esc(b.publisher || '')}"></label></div>
-      <p class="hint">Estos datos se usan para la referencia APA de la ficha de lectura.</p>`,
-    actions: [{ label: 'Cancelar', value: null }, { label: 'Guardar', primary: true, value: (d) => Object.fromEntries(['title', 'author', 'year', 'publisher'].map(k => [k, d.querySelector(`[name=${k}]`).value.trim()])) }],
+    title, wide: true,
+    body: `<div class="book-form">${BOOK_FORM.map(([k, label, kind]) => `<label class="field${kind ? ' ' + kind : ''}"><span>${label}</span>${kind === 'area'
+      ? `<textarea name="${k}" rows="${k === 'description' ? 4 : 2}">${esc(val(k))}</textarea>` : `<input name="${k}" value="${esc(val(k))}">`}</label>`).join('')}</div>
+      <p class="hint">Estos datos llenan automáticamente las fichas de lectura y las referencias APA. El número de páginas casi nunca viene en el EPUB: si lo necesitas, cópialo del libro impreso.</p>`,
+    actions: [{ label: 'Cancelar', value: null }, { label: 'Guardar', primary: true, value: (d) => {
+      const o = Object.fromEntries(BOOK_FORM.map(([k]) => [k, d.querySelector(`[name=${k}]`).value.trim()]));
+      if (!o.title) { toast('El libro necesita un título'); return false; }
+      o.subjects = o.subjects ? o.subjects.split(',').map(x => x.trim()).filter(Boolean) : [];
+      return o;
+    } }],
+    onOpen: (d) => { if (!b.title) d.querySelector('[name=title]').focus(); },
   });
-  if (!r) return;
+  if (!r) return null;
   Object.assign(b, r);
   await save(b);
+  return b;
+}
+
+export async function newPaperBook() {
+  const now = Date.now();
+  const b = { id: db.uid('b'), type: 'book', title: '', author: '', noFile: true, highlights: [], subjects: [], percent: 0, club: false, metaV: 2, created: now };
+  const r = await editBook(b, { title: 'Agregar libro sin archivo' });
+  return r;
+}
+
+// Selector de libro para las plantillas de lectura. Devuelve el libro, 'none' (sin libro) o null (cancelar).
+export function pickBook({ title = '¿De qué libro?' } = {}) {
+  return new Promise(resolve => {
+    let picked = null;
+    const books = live('books').sort((a, b) => (b.lastOpened || b.created || 0) - (a.lastOpened || a.created || 0));
+    const row = (b) => `<button type="button" class="pick-book" data-b="${b.id}" data-q="${esc((b.title + ' ' + (b.author || '')).toLowerCase())}">
+      ${b.cover ? `<img src="${b.cover}" alt="">` : `<span class="pick-fake">${esc(b.title.slice(0, 18))}</span>`}
+      <span class="grow"><strong>${esc(b.title)}</strong><span class="hint">${esc(authorDisplay(b))}${b.year ? ' · ' + esc(b.year) : ''}${b.noFile ? ' · sin archivo' : ''}</span></span></button>`;
+    dialog({
+      title, wide: true,
+      body: `${books.length > 5 ? `<label class="field"><span class="sr">Buscar libro</span><input type="search" id="pickQ" placeholder="Buscar por título o autor…" autocomplete="off"></label>` : ''}
+        <div class="pick-list">${books.map(row).join('') || '<p class="empty">Tu biblioteca está vacía.</p>'}</div>
+        <div class="btn-row"><button type="button" class="btn" id="pickNew">${icon('mas', 14)}Agregar un libro que no está</button><button type="button" class="btn" id="pickNone">Seguir sin libro</button></div>`,
+      actions: [{ label: 'Cancelar', value: null }],
+      onOpen: (d) => {
+        const done = (v) => { picked = v; d.querySelector('[data-close]').click(); };
+        d.querySelectorAll('[data-b]').forEach(x => x.addEventListener('click', () => done(S.books.get(x.dataset.b))));
+        d.querySelector('#pickNone').addEventListener('click', () => done('none'));
+        d.querySelector('#pickNew').addEventListener('click', async () => { const b = await newPaperBook(); if (b) done(b); });
+        const q = d.querySelector('#pickQ');
+        q?.addEventListener('input', () => { const v = q.value.toLowerCase().trim(); d.querySelectorAll('[data-b]').forEach(x => { x.hidden = v && !x.dataset.q.includes(v); }); });
+        q?.focus();
+      },
+    }).then(() => resolve(picked));
+  });
 }
 
 /* ---------- Lector ---------- */
@@ -323,16 +400,13 @@ export async function viewReader(id) {
 
 async function fichaDeLectura(b) {
   const sp = findSpaceByName('club', 'lectura');
-  const blocks = [
-    { type: 'referencia', data: { tipo: 'libro', autores: b.author || '', anio: b.year || '', titulo: b.title || '', editorial: b.publisher || '' } },
-    { type: 'header', data: { text: 'De qué trata', level: 2 } },
-    { type: 'paragraph', data: { text: '' } },
+  const tpl = live('templates').find(t => t.builtin === 'ficha') || live('templates').find(t => /ficha/i.test(t.name));
+  const subrayados = [
     { type: 'header', data: { text: 'Subrayados', level: 2 } },
     ...(b.highlights || []).map(h => ({ type: 'quote', data: { text: esc(h.text), caption: esc([h.chapter, h.note].filter(Boolean).join(' — ')), alignment: 'left' } })),
-    { type: 'header', data: { text: 'Lo que me deja', level: 2 } },
-    { type: 'paragraph', data: { text: '' } },
   ];
-  await createNote({ spaceId: sp?.id, title: `Ficha de lectura · ${b.title}`, blocks, extra: { bookId: b.id } });
+  const base = tpl ? fillBlocks(structuredClone(tpl.content?.blocks || []), b) : fillBlocks([{ type: 'referencia', data: {} }], b);
+  await createNote({ spaceId: sp?.id, title: `Ficha de lectura · ${b.title}`, blocks: [...base, ...subrayados], extra: { bookId: b.id } });
 }
 
 export function lastBook() {

@@ -48,15 +48,18 @@ export const DEFAULT_TEMPLATES = [
     H('Momentos'), L('Oración inicial', 'Experiencia de vida', 'Iluminación', 'Compromiso', 'Oración final'),
     H('Materiales'), C(''),
   ] },
-  { key: 'ficha', name: 'Ficha de lectura', blocks: [
+  { key: 'ficha', name: 'Ficha de lectura', book: true, blocks: [
     { type: 'referencia', data: { tipo: 'libro' } },
+    H('Datos del libro'),
+    L('Título: {{libro.titulo}}', 'Autor: {{libro.autor}}', 'Año: {{libro.anio}}', 'Editorial: {{libro.editorial}}', 'Páginas: {{libro.paginas}}', 'ISBN: {{libro.isbn}}', 'Temas: {{libro.temas}}'),
+    H('Sinopsis'), P('{{libro.sinopsis}}'),
     H('De qué trata'), P(''),
     H('Ideas principales'), L(''),
     H('Citas que me quedaron'), P(''),
     H('Lo que me deja (pastoral, personal, académico)'), P(''),
   ] },
-  { key: 'club', name: 'Sesión del club de lectura', blocks: [
-    L('Libro:', 'Capítulos de la sesión:', 'Fecha:'),
+  { key: 'club', name: 'Sesión del club de lectura', book: true, blocks: [
+    L('Libro: {{libro.titulo}} — {{libro.autor}} ({{libro.anio}})', 'Capítulos de la sesión:', 'Fecha:'),
     H('Preguntas para conversar'), { type: 'list', data: { style: 'ordered', meta: {}, items: [{ content: '', meta: {}, items: [] }] } },
     H('Fragmentos para leer en voz alta'), P(''),
     H('Lo que salió en la conversación'), P(''),

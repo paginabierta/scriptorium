@@ -47,9 +47,21 @@ async function seed() {
     });
   }
   if (!st.seededTemplates) {
-    if (!live('templates').length) DEFAULT_TEMPLATES.forEach((t, i) => recs.push({ id: 't-ini-' + t.key, type: 'template', name: t.name, content: { blocks: t.blocks }, order: i, builtin: t.key, created: now, updated: 1, seed: true }));
+    if (!live('templates').length) DEFAULT_TEMPLATES.forEach((t, i) => recs.push({ id: 't-ini-' + t.key, type: 'template', name: t.name, content: { blocks: t.blocks }, order: i, builtin: t.key, ...(t.book ? { book: true } : {}), created: now, updated: 1, seed: true }));
     // Nunca marcar los ajustes como recientes aquí: no deben pisar los ajustes guardados en Drive (contraseña del espacio Privado, etc.)
     st.seededTemplates = true; if (!st.updated) st.updated = 1; recs.push(st);
+  }
+  // Actualiza las plantillas de lectura que vienen de fábrica (solo si nunca las editaste)
+  if (!st.tplBooksV2) {
+    for (const t of live('templates')) {
+      const def = DEFAULT_TEMPLATES.find(d => d.key === t.builtin && d.book);
+      const untouched = !t.updated || t.updated <= 1 || (t.created && t.updated - t.created < 10000);
+      if (def && untouched && !JSON.stringify(t.content || {}).includes('{{libro.')) {
+        recs.push({ ...t, content: { blocks: structuredClone(def.blocks) }, book: true, updated: t.updated || 1 });
+      }
+    }
+    st.tplBooksV2 = true; if (!st.updated) st.updated = 1;
+    if (!recs.includes(st)) recs.push(st);
   }
   if (recs.length) { await db.putMany(recs); await loadAll(); }
 }
