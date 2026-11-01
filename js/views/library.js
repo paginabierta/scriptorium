@@ -252,7 +252,9 @@ export async function viewReader(id) {
       <aside class="reader-panel" id="rdPanel" hidden></aside>
       <div class="sel-bar" id="selBar" hidden>
         <button type="button" class="sel-btn primary" id="selHl">${icon('marca', 15)}Subrayar</button>
-        <button type="button" class="sel-btn" id="selNote">${icon('lapiz', 15)}Anotar</button>
+        <button type="button" class="sel-btn" id="selSent" title="Ampliar la selección a toda la frase">Frase</button>
+        <button type="button" class="sel-btn" id="selPara" title="Ampliar la selección a todo el párrafo">Párrafo</button>
+        <button type="button" class="sel-btn" id="selNote" aria-label="Subrayar y anotar">${icon('lapiz', 15)}<span class="lbl">Anotar</span></button>
         <button type="button" class="sel-btn x" id="selX" aria-label="Cerrar">${icon('x', 16)}</button>
       </div>
     </div>`;
@@ -341,21 +343,82 @@ export async function viewReader(id) {
   $('#selHl').addEventListener('click', () => addHl(false));
   $('#selNote').addEventListener('click', () => addHl(true));
   $('#selX').addEventListener('click', clearSel);
-  ['selHl', 'selNote', 'selX'].forEach(id => $('#' + id).addEventListener('pointerdown', (e) => e.preventDefault()));
+  ['selHl', 'selNote', 'selX', 'selSent', 'selPara'].forEach(id => $('#' + id).addEventListener('pointerdown', (e) => e.preventDefault()));
+
+  // Ampliar la selección a la frase o al párrafo completo (en el celular arrastrar las manijas es difícil)
+  const blockOf = (n) => { n = n.nodeType === 3 ? n.parentNode : n; return n.closest('p,li,blockquote,h1,h2,h3,h4,h5,h6,dd,dt,td,figcaption') || n.closest('div') || n; };
+  const textMap = (block) => {
+    const w = block.ownerDocument.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+    const nodes = []; let pos = 0, n;
+    while ((n = w.nextNode())) { nodes.push({ n, start: pos }); pos += n.textContent.length; }
+    return { nodes, text: nodes.map(x => x.n.textContent).join('') };
+  };
+  const toAbs = (map, node, off) => { const hit = map.nodes.find(x => x.n === node); return hit ? hit.start + off : (node.nodeType === 1 ? 0 : 0); };
+  const toNode = (map, abs) => {
+    for (const x of map.nodes) if (abs <= x.start + x.n.textContent.length) return [x.n, abs - x.start];
+    const last = map.nodes[map.nodes.length - 1]; return [last.n, last.n.textContent.length];
+  };
+  const expandSel = (kind) => {
+    const ps = pendingSel; if (!ps) return;
+    const win = ps.contents.window, doc = ps.contents.document;
+    const sel = win.getSelection(); if (!sel.rangeCount) return;
+    const r = sel.getRangeAt(0);
+    const b1 = blockOf(r.startContainer), b2 = blockOf(r.endContainer);
+    const nr = doc.createRange();
+    if (kind === 'p') {
+      nr.setStart(b1, 0); nr.setEnd(b2, b2.childNodes.length);
+    } else {
+      const m1 = textMap(b1), m2 = b1 === b2 ? m1 : textMap(b2);
+      if (!m1.nodes.length || !m2.nodes.length) return;
+      let a = r.startContainer.nodeType === 3 ? toAbs(m1, r.startContainer, r.startOffset) : 0;
+      let z = r.endContainer.nodeType === 3 ? toAbs(m2, r.endContainer, r.endOffset) : m2.text.length;
+      const t1 = m1.text, t2 = m2.text;
+      // inicio: después del último signo de cierre de frase antes de la selección
+      let i = a; while (i > 0 && !/[.!?…;]/.test(t1[i - 1])) i--;
+      while (i < t1.length && /[\s"'»”’)\]]/.test(t1[i])) i++;
+      // fin: hasta el siguiente signo de cierre (incluye comillas que lo siguen)
+      let j = Math.max(z, 0); while (j < t2.length && !/[.!?…]/.test(t2[j])) j++;
+      if (j < t2.length) j++;
+      while (j < t2.length && /["'»”’)\]]/.test(t2[j])) j++;
+      const [sn, so] = toNode(m1, Math.min(i, a)); const [en, eo] = toNode(m2, Math.max(j, z));
+      nr.setStart(sn, so); nr.setEnd(en, eo);
+    }
+    sel.removeAllRanges(); sel.addRange(nr);
+    let cfi = ps.cfi; try { cfi = ps.contents.cfiFromRange(nr); } catch (e) {}
+    pendingSel = { cfi, text: nr.toString().trim(), contents: ps.contents };
+    $('#selBar').hidden = false;
+  };
+  $('#selSent').addEventListener('click', () => expandSel('s'));
+  $('#selPara').addEventListener('click', () => expandSel('p'));
 
   // Navegación
-  const prev = () => rendition.prev(), next = () => rendition.next();
+  // El lector se mueve de página en página. Si el navegador intenta correrlo de lado (por ejemplo al arrastrar
+  // las manijas de selección), lo devolvemos a su sitio; solo nuestras acciones pueden cambiar de página.
+  const scroller = area.querySelector('.epub-container') || area;
+  let lockLeft = scroller.scrollLeft, navigating = false, navTimer = null;
+  const nav = async (fn) => {
+    navigating = true; clearTimeout(navTimer);
+    try { await fn(); } catch (e) {}
+    navTimer = setTimeout(() => { lockLeft = scroller.scrollLeft; navigating = false; }, 150);
+  };
+  scroller.addEventListener('scroll', () => { if (!navigating && Math.abs(scroller.scrollLeft - lockLeft) > 2) scroller.scrollLeft = lockLeft; });
+  const onResize = () => nav(() => new Promise(r => setTimeout(r, 600)));
+  window.addEventListener('resize', onResize);
+  const hasSelection = () => { try { return rendition.getContents().some(c => { const x = c.window.getSelection(); return x && !x.isCollapsed && x.toString().trim(); }); } catch (e) { return false; } };
+  const prev = () => nav(() => rendition.prev()), next = () => nav(() => rendition.next());
   $('#rdPrev').addEventListener('click', prev);
   $('#rdNext').addEventListener('click', next);
   const keys = (e) => { if (e.target.closest?.('input,textarea,[contenteditable="true"]')) return; if (e.key === 'ArrowLeft') prev(); if (e.key === 'ArrowRight') next(); };
   document.addEventListener('keyup', keys);
   rendition.on('keyup', keys);
-  let touchX = null;
-  rendition.on('touchstart', (e) => { touchX = e.changedTouches?.[0]?.screenX ?? null; });
+  // Deslizar para pasar de página, pero nunca mientras estás seleccionando texto
+  let touchX = null, touchT = 0, selectingAtStart = false;
+  rendition.on('touchstart', (e) => { touchX = e.changedTouches?.[0]?.screenX ?? null; touchT = Date.now(); selectingAtStart = hasSelection() || !!pendingSel; });
   rendition.on('touchend', (e) => {
     if (touchX === null) return;
     const dx = (e.changedTouches?.[0]?.screenX ?? touchX) - touchX;
-    if (Math.abs(dx) > 50) (dx < 0 ? next : prev)();
+    const quick = Date.now() - touchT < 600;
+    if (!selectingAtStart && !hasSelection() && quick && Math.abs(dx) > 60) (dx < 0 ? next : prev)();
     touchX = null;
   });
 
@@ -367,7 +430,7 @@ export async function viewReader(id) {
     const nav = await book.loaded.navigation;
     const flat = (items, depth = 0) => items.flatMap(i => [{ ...i, depth }, ...flat(i.subitems || [], depth + 1)]);
     openPanel(`<h2 class="card-title">Índice</h2><div class="toc">${flat(nav.toc).map(i => `<button type="button" data-href="${esc(i.href)}" style="padding-left:${12 + i.depth * 14}px">${esc(i.label.trim())}</button>`).join('') || '<p class="empty">Este libro no trae índice.</p>'}</div>`);
-    $$('[data-href]', panel).forEach(x => x.addEventListener('click', () => { rendition.display(x.dataset.href); panel.hidden = true; }));
+    $$('[data-href]', panel).forEach(x => x.addEventListener('click', () => { nav(() => rendition.display(x.dataset.href)); panel.hidden = true; }));
   });
 
   const renderHlPanel = () => {
@@ -380,7 +443,7 @@ export async function viewReader(id) {
           <button type="button" class="btn sm" data-go="${h.id}">Ir</button>
           <button type="button" class="icon-btn sm" data-rm="${h.id}" aria-label="Borrar subrayado">${icon('papelera', 14)}</button></div>
       </article>`).join('')}</div>` : '<p class="empty">Selecciona un texto del libro para subrayarlo.</p>'}`);
-    $$('[data-go]', panel).forEach(x => x.addEventListener('click', () => { const h = hs.find(y => y.id === x.dataset.go); rendition.display(h.cfi); panel.hidden = true; }));
+    $$('[data-go]', panel).forEach(x => x.addEventListener('click', () => { const h = hs.find(y => y.id === x.dataset.go); nav(() => rendition.display(h.cfi)); panel.hidden = true; }));
     $$('[data-rm]', panel).forEach(x => x.addEventListener('click', async () => {
       const h = hs.find(y => y.id === x.dataset.rm);
       try { rendition.annotations.remove(h.cfi, 'highlight'); } catch (e) {}
@@ -395,11 +458,11 @@ export async function viewReader(id) {
     openPanel(`<h2 class="card-title">Lectura</h2>
       <div class="field"><span>Tamaño de letra</span><div class="btn-row"><button type="button" class="btn" id="fMinus">A−</button><span class="pill" id="fSize">${prefs.size} %</span><button type="button" class="btn" id="fPlus">A+</button></div></div>
       <div class="field"><span>Colores</span><div class="btn-row">${Object.keys(THEMES).map(k => `<button type="button" class="btn${prefs.theme === k ? ' primary' : ''}" data-th="${k}">${k.charAt(0).toUpperCase() + k.slice(1)}</button>`).join('')}</div></div>`);
-    const setSize = (d) => { prefs.size = Math.max(70, Math.min(180, prefs.size + d)); rendition.themes.fontSize(prefs.size + '%'); $('#fSize').textContent = prefs.size + ' %'; localStorage.setItem('scr.reader', JSON.stringify(prefs)); };
+    const setSize = (d) => { prefs.size = Math.max(70, Math.min(180, prefs.size + d)); nav(() => { rendition.themes.fontSize(prefs.size + '%'); return new Promise(r => setTimeout(r, 700)); }); $('#fSize').textContent = prefs.size + ' %'; localStorage.setItem('scr.reader', JSON.stringify(prefs)); };
     $('#fMinus').addEventListener('click', () => setSize(-10));
     $('#fPlus').addEventListener('click', () => setSize(10));
     $$('[data-th]', panel).forEach(x => x.addEventListener('click', () => {
-      prefs.theme = x.dataset.th; rendition.themes.select(prefs.theme);
+      prefs.theme = x.dataset.th; nav(() => { rendition.themes.select(prefs.theme); return new Promise(r => setTimeout(r, 400)); });
       $('.reader').className = 'reader theme-' + prefs.theme;
       localStorage.setItem('scr.reader', JSON.stringify(prefs));
       $$('[data-th]', panel).forEach(y => y.classList.toggle('primary', y === x));
@@ -408,6 +471,7 @@ export async function viewReader(id) {
 
   page.cleanup = async () => {
     document.removeEventListener('keyup', keys);
+    window.removeEventListener('resize', onResize);
     destroyed = true;
     saveProgress.flush();
     try { rendition.destroy(); } catch (e) {}

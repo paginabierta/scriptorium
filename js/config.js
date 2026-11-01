@@ -7,4 +7,4 @@ export const GOOGLE_CLIENT_ID = '977350065259-j9vvvpl2e3nd3mvnmvte23rdouoeroe7.a
 export const DRIVE_FOLDER_NAME = 'Scriptorium';
 export const DRIVE_DATA_FILE = 'scriptorium-datos.json';
 
-export const APP_VERSION = '0.5.1';
+export const APP_VERSION = '0.5.2';

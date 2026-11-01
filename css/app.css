@@ -392,8 +392,8 @@ a.pill:hover { border-color: #C9BBA3; color: var(--ink); }
 .hl-item blockquote { margin: 0; font-family: var(--serif); font-size: 16px; line-height: 1.45; background: #FBF1D8; border-radius: 8px; padding: 10px 12px; }
 .hl-note { margin: 6px 0 0; font-size: 14px; }
 .hl-actions { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; }
-.sel-bar { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); display: flex; gap: 4px; align-items: center; background: var(--ink); border-radius: 999px; padding: 4px; box-shadow: 0 6px 20px rgba(0, 0, 0, .25); z-index: 4; }
-.sel-btn { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: #FFFDF8; border-radius: 999px; padding: 0 12px; min-height: 36px; font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap; }
+.sel-bar { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); width: max-content; display: flex; flex-wrap: nowrap; max-width: calc(100vw - 16px); overflow-x: auto; scrollbar-width: none; gap: 2px; align-items: center; background: var(--ink); border-radius: 999px; padding: 4px; box-shadow: 0 6px 20px rgba(0, 0, 0, .25); z-index: 4; }
+.sel-btn { display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: #FFFDF8; border-radius: 999px; padding: 0 10px; min-height: 38px; font: inherit; font-size: 13.5px; cursor: pointer; white-space: nowrap; }
 .sel-btn.primary { background: var(--accent); }
 .sel-btn.x { padding: 0; width: 36px; justify-content: center; }
 .sel-btn:hover { background: rgba(255, 255, 255, .12); }
@@ -541,3 +541,5 @@ a.pill:hover { border-color: #C9BBA3; color: var(--ink); }
 .ph { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 6px 9px; cursor: pointer; font-family: ui-monospace, monospace; font-size: 12px; color: var(--accent); }
 .ph small { font-family: var(--sans); color: var(--muted); font-size: 11px; }
 .ph:hover { border-color: var(--accent); }
+
+@media (max-width: 420px) { .sel-btn .lbl { display: none; } #selNote { padding: 0; width: 38px; justify-content: center; } }
