@@ -8,6 +8,10 @@ import { dueNotes } from './review.js';
 import { lastBook } from './library.js';
 import { lastProject, todayWords, streak } from './writing.js';
 import * as gcal from '../gcal.js';
+import { todayPlans, MARKERS, STICKERS } from './planner.js';
+import { lecturasPara, lecturasHtml, vaticanUrl } from '../lecturas.js';
+import { lectioFor } from './lectio.js';
+import { metasCard } from './metas.js';
 import { permissionHtml, bindPermission, eventRows, bindEventRows, eventDialog } from './agenda.js';
 
 const fmt = (n) => Number(n || 0).toLocaleString('es-CO');
@@ -53,9 +57,11 @@ export function viewHoy() {
           <div class="eyebrow accent">${dot(nx.color)}${cuando ? cuando + ' · ' : ''}${esc(fechaCorta(nx.fecha))}</div>
           <h2 class="feature-title">${esc(nx.etiqueta)}</h2>
           <p class="hint">${esc(nx.tiempo)} · Ciclo ${nx.ciclo}</p>
+          ${lecturasHtml(lecturasPara(nx.fecha), esc)}
           <div class="btn-row">
             ${yaHay.length ? `<a class="btn primary" href="#/nota/${yaHay[0].id}">${icon('pluma', 14)}Seguir con la homilía</a>` : `<button type="button" class="btn primary" id="prepHom">${icon('pluma', 14)}Preparar homilía</button>`}
-            <a class="btn" href="#/calendario">${icon('calendario', 14)}Calendario</a>
+            ${(() => { const lx = lectioFor(nxIso); return lecturasPara(nx.fecha) ? `<a class="btn" href="#/lectio/${lx ? lx.id : 'nueva/' + nxIso}">${icon('vela', 14)}${lx ? 'Mi Lectio' : 'Lectio Divina'}</a>` : ''; })()}
+            <a class="btn" href="${vaticanUrl(nx.fecha)}" target="_blank" rel="noopener">Leer los textos ↗</a>
           </div>
         </div>
         <aside class="feature-side">
@@ -70,6 +76,12 @@ export function viewHoy() {
           <div class="card-head"><h2 class="card-title">Agenda de hoy</h2>${gcal.isReady() ? `<button type="button" class="btn sm" id="newEv">${icon('mas', 13)}Evento</button>` : ''}</div>
           <div id="agendaBody">${gcal.isReady() ? '<p class="hint">Cargando tu agenda…</p>' : permissionHtml()}</div>
         </section>` : ''}
+        ${(() => { const tp = todayPlans(); return `<section class="card">
+          <div class="card-head"><h2 class="card-title">En tu planeador hoy</h2><a class="btn sm" href="#/planeador">${icon('tablero', 13)}Abrir</a></div>
+          ${tp.length ? `<ul class="plain hoy-plans">${tp.map(p => { const m = MARKERS.find(x => x[0] === p.color) || MARKERS[2]; const st = STICKERS[p.sticker]; return `<li class="${p.done ? 'done' : ''}" style="--c:${m[3]}">${st ? `<i>${st[1]}</i>` : '<span class="dotc"></span>'}<span>${esc(p.text)}</span>${p.time ? `<small>${esc(p.time)}</small>` : ''}</li>`; }).join('')}</ul>`
+            : '<p class="empty">Nada escrito para hoy. Abre el planeador y escribe con tus marcadores.</p>'}
+        </section>`; })()}
+        ${metasCard()}
         <section class="card">
           <h2 class="card-title">Pendientes</h2>
           ${pend.length ? `<ul class="plain">${pend.map(p => `<li><a href="#/nota/${p.note.id}" class="pend"><span class="box" aria-hidden="true"></span><span><span>${esc(p.text)}</span><span class="pend-src">${esc(p.note.title || 'Sin título')}</span></span></a></li>`).join('')}</ul>`

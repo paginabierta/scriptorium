@@ -1,6 +1,7 @@
 // Calendario: el año litúrgico día por día y las notas con fecha.
 import { S, $, $$, esc, icon, isoDate, parseISO, fechaCorta, MESES, liveNotes, findSpaceByName, live } from '../core.js';
 import { liturgicalDay, COLORES } from '../liturgia.js';
+import { lecturasPara, lecturasHtml, vaticanUrl } from '../lecturas.js';
 import { createNote } from './notes.js';
 import * as gcal from '../gcal.js';
 import { permissionHtml, bindPermission, eventRows, bindEventRows, eventDialog } from './agenda.js';
@@ -107,12 +108,14 @@ function showDay(iso, notes) {
     <div class="eyebrow">${esc(fechaCorta(d))}</div>
     <h2 class="card-title"><span class="lit-dot" style="background:${COLORES[lit.color]};${lit.color === 'blanco' ? 'border:1.5px solid #B9AC96;' : ''}"></span> ${esc(lit.etiqueta || lit.semana)}</h2>
     <p class="hint">${esc(lit.tiempo)}${lit.semana && lit.etiqueta ? ' · ' + esc(lit.semana) : ''} · color ${lit.color} · Ciclo ${lit.ciclo} · ${lit.anoFerial}</p>
+    ${(() => { const r = lecturasPara(d); return r ? `${lecturasHtml(r, esc)}<p class="hint"><a class="lec-link" href="${vaticanUrl(d)}" target="_blank" rel="noopener">Leer los textos en Vatican News ↗</a></p>` : ''; })()}
     ${notes.length ? `<div class="rows">${notes.map(n => `<a class="row" href="#/nota/${n.id}"><span class="row-main"><span class="row-title">${esc(n.title || 'Sin título')}</span></span><span class="row-meta">${esc(S.spaces.get(n.spaceId)?.name || '')}</span></a>`).join('')}</div>` : ''}
     ${previas.length ? `<h3 class="mini">Este mismo día en otros años</h3><div class="rows">${previas.map(n => `<a class="row" href="#/nota/${n.id}"><span class="row-main"><span class="row-title">${esc(n.title || 'Sin título')}</span></span><span class="row-meta">${n.fecha?.slice(0, 4)} · ciclo ${liturgicalDay(parseISO(n.fecha)).ciclo}</span></a>`).join('')}</div>` : ''}
     ${gcal.isReady() ? (() => { const evs = gcal.eventsOnDay(monthEvents, iso); return `<h3 class="mini">Agenda</h3>${evs.length ? `<div class="ev-list" id="dayEvents">${eventRows(evs)}</div>` : '<p class="hint">Nada en tu Google Calendar este día.</p>'}`; })()
       : gcal.needsPermission() ? `<h3 class="mini">Agenda</h3><div id="dayPerm">${permissionHtml()}</div>` : ''}
     <div class="btn-row">
       ${lit.clave ? `<button type="button" class="btn primary" id="hom">${icon('pluma', 14)}Preparar homilía</button>` : ''}
+      ${lecturasPara(d) ? `<a class="btn" href="#/lectio/nueva/${iso}">${icon('libro', 14)}Lectio Divina</a>` : ''}
       <button type="button" class="btn" id="dayNote">${icon('mas', 14)}Nota para este día</button>
       ${gcal.isReady() ? `<button type="button" class="btn" id="dayEvent">${icon('calendario', 14)}Nuevo evento</button>` : ''}
     </div>

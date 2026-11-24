@@ -7,6 +7,7 @@ import {
 import { createEditor, blocksToText, collectReferences, blocksToHtml } from '../editor.js';
 import { formatAPA, citaEnTexto } from '../apa.js';
 import { liturgicalDay, COLORES } from '../liturgia.js';
+import { lecturasPara, lecturasHtml, vaticanUrl, fillLecturas } from '../lecturas.js';
 import { exportDocx, printDocument, exportMarkdown } from '../export.js';
 import { reviewToggle } from './review.js';
 import * as gcal from '../gcal.js';
@@ -74,7 +75,7 @@ export async function createNote({ spaceId, parentId = null, templateId = '', ti
     id: db.uid('n'), type: 'note', spaceId, parentId, title: title || '', tags: [],
     content: { blocks: structuredClone(blocks || tpl?.content?.blocks || []) }, created: now, updated: now, ...extra,
   };
-  if (fecha) { n.fecha = fecha; n.litKey = liturgicalDay(parseISO(fecha)).clave || ''; }
+  if (fecha) { n.fecha = fecha; n.litKey = liturgicalDay(parseISO(fecha)).clave || ''; fillLecturas(n.content.blocks, parseISO(fecha)); }
   n.text = noteText(n);
   await save(n, { touch: false });
   location.hash = '#/nota/' + n.id;
@@ -472,6 +473,7 @@ function renderLitInfo(n) {
   const borde = lit.color === 'blanco' ? 'border:1.5px solid #B9AC96;' : '';
   box.innerHTML = `<div class="lit-box">
     <div class="lit-line"><span class="lit-dot" style="background:${COLORES[lit.color]};${borde}"></span><strong>${esc(lit.etiqueta || lit.semana)}</strong><span class="muted">· ${esc(fechaCorta(dt))} · Ciclo ${lit.ciclo} · ${lit.anoFerial}</span></div>
+    ${(() => { const r = lecturasPara(dt); return r ? `<details class="lit-lec"><summary>Lecturas del día</summary>${lecturasHtml(r, esc)}<a class="lec-link" href="${vaticanUrl(dt)}" target="_blank" rel="noopener">Ver los textos en Vatican News ↗</a></details>` : ''; })()}
     ${others.length ? `<div class="lit-prev"><span class="muted">Lo que escribiste para este mismo día:</span> ${others.map(o => `<a href="#/nota/${o.id}">${esc(o.title || 'Sin título')}${o.fecha ? ` (${o.fecha.slice(0, 4)}, ciclo ${liturgicalDay(parseISO(o.fecha)).ciclo})` : ''}</a>`).join(' · ')}</div>` : ''}
   </div>`;
 }

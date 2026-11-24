@@ -9,6 +9,10 @@ import { DEFAULT_TEMPLATES } from './templates.js';
 import { viewSpace, viewNote, viewSpaces, viewSearch, viewTrash, viewTemplates } from './views/notes.js';
 import { viewHoy } from './views/hoy.js';
 import { viewCalendar } from './views/calendar.js';
+import { viewPlanner } from './views/planner.js';
+import { viewLectio } from './views/lectio.js';
+import { viewMetas, revisionPendiente } from './views/metas.js';
+import { viewCatequesis } from './views/catequesis.js';
 import { viewReview, dueNotes } from './views/review.js';
 import { viewLibrary, viewReader, syncBooks } from './views/library.js';
 import { viewWriting } from './views/writing.js';
@@ -63,6 +67,16 @@ async function seed() {
     st.tplBooksV2 = true; if (!st.updated) st.updated = 1;
     if (!recs.includes(st)) recs.push(st);
   }
+  // v0.7: plantillas de catequesis (IVC) para quienes ya tenían Scriptorium
+  if (!st.tplIVCV1) {
+    const order = live('templates').length;
+    DEFAULT_TEMPLATES.filter(t => ['ivc', 'ivcproceso'].includes(t.key)).forEach((t, i) => {
+      const id = 't-ini-' + t.key;
+      if (!S.templates.has(id) && !live('templates').some(x => x.builtin === t.key) && !recs.some(x => x.builtin === t.key)) recs.push({ id, type: 'template', name: t.name, content: { blocks: structuredClone(t.blocks) }, order: order + i, builtin: t.key, created: now, updated: now });
+    });
+    st.tplIVCV1 = true; if (!st.updated) st.updated = 1;
+    if (!recs.includes(st)) recs.push(st);
+  }
   if (recs.length) { await db.putMany(recs); await loadAll(); }
 }
 
@@ -85,7 +99,11 @@ function renderSidebar() {
     </form>
     <nav class="nav-group" aria-label="Principal">
       <a href="#/hoy" class="nav-item${act('#/hoy')}">${icon('hoy')}Hoy</a>
-      <a href="#/calendario" class="nav-item${act('#/calendario')}">${icon('calendario')}Calendario</a>
+      <a href="#/planeador" class="nav-item${act('#/planeador')}">${icon('tablero')}Planeador</a>
+      <a href="#/calendario" class="nav-item${act('#/calendario')}">${icon('calendario')}Calendario litúrgico</a>
+      <a href="#/lectio" class="nav-item${act('#/lectio')}">${icon('vela')}Lectio Divina</a>
+      <a href="#/metas" class="nav-item${act('#/metas')}">${icon('meta')}<span class="grow">Metas</span>${revisionPendiente() ? '<span class="badge" title="Revisión del mes">1</span>' : ''}</a>
+      <a href="#/catequesis" class="nav-item${act('#/catequesis')}">${icon('gente')}Catequesis</a>
       <a href="#/repaso" class="nav-item${act('#/repaso')}">${icon('repaso')}<span class="grow">Repaso</span>${due ? `<span class="badge">${due}</span>` : ''}</a>
     </nav>
     <div class="nav-group">
@@ -146,7 +164,7 @@ async function runSync() {
   if (changed) {
     await loadAll();
     renderSidebar();
-    if (!/^#\/(nota|escritura\/[^/]+\/|privado\/|leer|plantillas\/)/.test(location.hash)) route();
+    if (!/^#\/(nota|escritura\/[^/]+\/|privado\/|leer|plantillas\/|lectio\/|metas\/|catequesis\/)/.test(location.hash)) route();
   }
 }
 
@@ -168,6 +186,10 @@ async function doRoute() {
     case 'papelera': viewTrash(); break;
     case 'plantillas': viewTemplates(arg); break;
     case 'calendario': viewCalendar(arg); break;
+    case 'planeador': viewPlanner(arg); break;
+    case 'lectio': viewLectio(arg); break;
+    case 'metas': viewMetas(arg); break;
+    case 'catequesis': viewCatequesis(arg); break;
     case 'repaso': viewReview(); break;
     case 'biblioteca': viewLibrary(arg); break;
     case 'leer': await viewReader(arg); break;

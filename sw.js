@@ -1,10 +1,10 @@
 // Permite abrir Scriptorium sin conexión. Cambia VERSION cada vez que publiques cambios.
-const VERSION = 'scriptorium-v0.5.3';
+const VERSION = 'scriptorium-v0.7.0';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/db.js', 'js/drive.js', 'js/sync.js', 'js/liturgia.js', 'js/config.js', 'js/core.js',
-  'js/editor.js', 'js/blocks.js', 'js/apa.js', 'js/templates.js', 'js/export.js', 'js/crypto.js', 'js/gcal.js', 'js/format.js', 'js/bookmeta.js', 'js/views/agenda.js',
-  'js/views/notes.js', 'js/views/hoy.js', 'js/views/calendar.js', 'js/views/review.js', 'js/views/library.js',
+  'js/editor.js', 'js/blocks.js', 'js/apa.js', 'js/templates.js', 'js/export.js', 'js/crypto.js', 'js/gcal.js', 'js/format.js', 'js/bookmeta.js', 'js/views/agenda.js', 'js/lecturas.js',
+  'js/views/notes.js', 'js/views/hoy.js', 'js/views/calendar.js', 'js/views/planner.js', 'js/views/lectio.js', 'js/views/metas.js', 'js/views/catequesis.js', 'js/views/review.js', 'js/views/library.js',
   'js/views/writing.js', 'js/views/privado.js', 'js/views/settings.js',
   'vendor/jszip.min.js', 'vendor/epub.min.js',
   'vendor/editorjs.umd.js', 'vendor/header.umd.js', 'vendor/editorjs-list.umd.js',

@@ -4,11 +4,12 @@ import * as sync from './sync.js';
 
 export const S = {
   spaces: new Map(), notes: new Map(), templates: new Map(), books: new Map(),
-  projects: new Map(), chapters: new Map(), cards: new Map(), secrets: new Map(),
+  projects: new Map(), chapters: new Map(), cards: new Map(), secrets: new Map(), plans: new Map(),
+  lectios: new Map(), goals: new Map(), cateqs: new Map(),
   settings: null,
 };
 
-const BUCKET = { space: 'spaces', note: 'notes', template: 'templates', book: 'books', project: 'projects', chapter: 'chapters', card: 'cards', secret: 'secrets' };
+const BUCKET = { space: 'spaces', note: 'notes', template: 'templates', book: 'books', project: 'projects', chapter: 'chapters', card: 'cards', secret: 'secrets', plan: 'plans', lectio: 'lectios', goal: 'goals', cateq: 'cateqs' };
 
 export const PALETA = ['#7A2E2A', '#8A6A1F', '#2F5D7C', '#4F6B3A', '#9A4E2B', '#5B4A7A', '#6B6257', '#2F6B6B', '#8A3B5C', '#3E4C8A'];
 
@@ -82,6 +83,10 @@ const ICON = {
   ojo: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   expandir: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   reloj: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  vela: '<path d="M9 10h6v11H9z"/><path d="M12 10V7"/><path d="M12 2.5c1.4 1.5 2 2.6 2 3.4a2 2 0 0 1-4 0c0-.8.6-1.9 2-3.4z"/>',
+  meta: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+  gente: '<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 20c0-2.5 1-4.5 4-5"/>',
+  imprimir: '<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/>',
 };
 export const icon = (name, size = 16) => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${ICON[name] || ''}</svg>`;
 
